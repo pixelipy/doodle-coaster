@@ -15,17 +15,12 @@ import { RPlayerSettings } from './ecs/resources/RPlayerSettings';
 import { RGrid } from './ecs/resources/RGrid';
 
 //factories
-import { FPlayer } from './ecs/factories/FPlayer';
-import { FCamera } from './ecs/factories/FCamera';
 
 //systems
 import { STransformSync } from './ecs/systems/STransformSync';
 import { SInputReset } from './ecs/systems/SInputReset';
 import { SInputInit } from './ecs/systems/SInputInit';
 import { SMovement } from './ecs/systems/SMovement';
-import { SGridPlayerController } from './ecs/systems/SGridPlayerController';
-import { SCameraFollow } from './ecs/systems/SCameraFollow';
-import { SGridMovement } from './ecs/systems/SGridMovement';
 import { STime } from './ecs/systems/STime';
 import { SRender } from './ecs/systems/SRender';
 
@@ -54,17 +49,11 @@ world.addResource(new RWindow());
 world.addResource(new RInput());
 
 //initialize entities
-const playerId = await FPlayer(world, { position: new Vector3(0, 0, 0)});
-
-FCamera(world, playerId, { smoothness: 5, offset: -90, rotation: new Vector3(-Math.PI/4, Math.PI/6, 0)});
 
 //systems
 world.addSystem(new SInputInit());
 world.addSystem(new STime());
-world.addSystem(new SGridMovement());
 world.addSystem(new SMovement());
-world.addSystem(new SGridPlayerController());
-world.addSystem(new SCameraFollow());
 world.addSystem(new STransformSync());
 world.addSystem(new SRender());
 world.addSystem(new SInputReset());
