@@ -28,6 +28,10 @@ import { SRaycastPlane } from './ecs/systems/SRaycastPlane';
 import { FTrack } from './ecs/factories/trackFactory';
 import { SDrawTrack } from './ecs/systems/SDrawTrack';
 import { RTrackManager } from './ecs/resources/RTrackManager';
+import { SCart } from './ecs/systems/SCart';
+import { FCart } from './ecs/factories/cartFactory';
+import { RSimulationState } from './ecs/resources/RSimulationState';
+import { SUpdateSimulation } from './ecs/systems/SUpdateSimulation';
 
 const world = new World();
 const three = new RThree();
@@ -54,15 +58,19 @@ world.addResource(new RTime());
 world.addResource(new RWindow());
 world.addResource(new RInput());
 world.addResource(new RRaycast());
+world.addResource(new RSimulationState());
 
 //initialize entities
 //FTrack(world);
+FCart(world);
 
 //systems
 world.addSystem(new SInputInit());
+world.addSystem(new SUpdateSimulation())
 world.addSystem(new SRaycastPlane());
 world.addSystem(new STime());
 world.addSystem(new SMovement());
+world.addSystem(new SCart());
 world.addSystem(new STransformSync());
 world.addSystem(new SDrawTrack());
 world.addSystem(new SRender());

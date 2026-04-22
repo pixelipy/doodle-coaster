@@ -30,8 +30,5 @@ export class SRaycastPlane extends System {
         raycaster.ray.intersectPlane(plane, hit);
         hitPoint.copy(hit);
 
-        if (input.lmbDown) {
-            console.log("Hit point:", hitPoint);
-        }
     }
 }

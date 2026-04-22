@@ -58,7 +58,6 @@ export class SInputInit extends System {
 
         window.addEventListener("mousemove", (e) => {
             input.mousePosition.set(e.clientX, e.clientY);
-            console.log(`Mouse moved: (${e.clientX}, ${e.clientY})`);
         });
 
     }
