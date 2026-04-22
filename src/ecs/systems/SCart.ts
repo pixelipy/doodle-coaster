@@ -8,8 +8,8 @@ import { ESimulationState, RSimulationState } from "../resources/RSimulationStat
 import { Vector3 } from "three"
 
 const GRAVITY = 6
-const ATTACH_DIST = 0.12
-const REATTACH_COOLDOWN = 0.15
+const ATTACH_DIST = 0.2
+const REATTACH_COOLDOWN = 0.3
 const MIN_SPEED = 0.35
 const MAX_SPEED = 8
 const MAX_FORCE = 10
@@ -79,10 +79,10 @@ export class SCart extends System {
             if (!track || !track.curve) continue
 
             const curve = track.curve
-            const length = curve.getLength()
+            const length = track.curveLength
             if (length <= ROTATION_EPSILON) continue
 
-            const tangent = curve.getTangentAt(cart.t).normalize()
+            const tangent = curve.getTangentAt(cart.t)
 
             // gravity along slope
             const slope = tangent.y
@@ -91,7 +91,7 @@ export class SCart extends System {
 
             const nextT = Math.max(0, Math.min(1, cart.t + (cart.speed * dt) / length))
             const nextPoint = curve.getPointAt(nextT)
-            const nextTangent = curve.getTangentAt(nextT).normalize()
+            const nextTangent = curve.getTangentAt(nextT)
 
             const railVelocity = nextTangent.clone().multiplyScalar(cart.speed)
 
@@ -104,7 +104,7 @@ export class SCart extends System {
             // derail
             if (nextT < 0.99) {
                 const lookT = Math.min(nextT + 0.01, 1)
-                const lookTan = curve.getTangentAt(lookT).normalize()
+                const lookTan = curve.getTangentAt(lookT)
                 const turn = 1 - nextTangent.dot(lookTan)
                 const force = cart.speed * cart.speed * turn
 
@@ -196,7 +196,7 @@ export class SCart extends System {
         pos.position.copy(bestPoint)
         pos.dirty = true
 
-        const tangent = bestTrack.curve!.getTangentAt(cart.t).normalize()
+        const tangent = bestTrack.curve!.getTangentAt(cart.t)
 
         const projectedSpeed = vel.velocity.dot(tangent)
         cart.speed = Math.max(Math.min(projectedSpeed, MAX_SPEED), -MAX_SPEED)

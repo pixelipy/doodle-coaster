@@ -16,7 +16,7 @@ export class SRaycastPlane extends System {
         const input = world.getResource(RInput)!;
         const three = world.getResource(RThree)!;
 
-        const {raycaster, mouseNDC, hitPoint, plane} = raycast;
+        const {raycaster, mouseNDC, hitPoint, hitScratch, plane} = raycast;
 
         //calculate new mouse NDC
         mouseNDC.set(
@@ -25,10 +25,8 @@ export class SRaycastPlane extends System {
         );
 
         raycaster.setFromCamera(mouseNDC, three.camera);
-
-        const hit = new Vector3();
-        raycaster.ray.intersectPlane(plane, hit);
-        hitPoint.copy(hit);
+        raycaster.ray.intersectPlane(plane, hitScratch);
+        hitPoint.copy(hitScratch);
 
     }
 }

@@ -4,6 +4,7 @@ import { Component } from "../core/component";
 export class CTrack extends Component {
     rawPoints: Vector3[] = [];
     curve: CatmullRomCurve3 | null = null;
+    curveLength: number = 0;
     sampled: Vector3[] = []; //for rendering
     lineMesh: Line | null = null;
 

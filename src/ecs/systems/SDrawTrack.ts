@@ -7,7 +7,7 @@ import { RTrackManager } from "../resources/RTrackManager"
 import { World } from "../core/world"
 import { FTrack } from "../factories/trackFactory"
 
-const MIN_DIST = 0.5
+const MIN_DIST = 0.1
 const SNAP_DIST = 0.1
 const TANGENT_PUSH = 0.05
 
@@ -80,6 +80,7 @@ export class SDrawTrack extends System {
         // 🔹 Rebuild spline
         if (dirty && track.rawPoints.length >= 2) {
             track.curve = new CatmullRomCurve3(track.rawPoints)
+            track.curveLength = track.curve.getLength()
             track.sampled = track.curve.getSpacedPoints(Math.min(200, track.rawPoints.length * 10))
 
             if (track.lineMesh) {
