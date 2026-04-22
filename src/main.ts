@@ -23,6 +23,11 @@ import { SInputInit } from './ecs/systems/SInputInit';
 import { SMovement } from './ecs/systems/SMovement';
 import { STime } from './ecs/systems/STime';
 import { SRender } from './ecs/systems/SRender';
+import { RRaycast } from './ecs/resources/RRaycast';
+import { SRaycastPlane } from './ecs/systems/SRaycastPlane';
+import { FTrack } from './ecs/factories/trackFactory';
+import { SDrawTrack } from './ecs/systems/SDrawTrack';
+import { RTrackManager } from './ecs/resources/RTrackManager';
 
 const world = new World();
 const three = new RThree();
@@ -42,19 +47,24 @@ await assetManager.loadAll({
 //Initilize Resources
 world.addResource(three);
 world.addResource(assetManager);
+world.addResource(new RTrackManager());
 world.addResource(new RPlayerSettings());
 world.addResource(new RGrid({ cellSize: 1.5 }));
 world.addResource(new RTime());
 world.addResource(new RWindow());
 world.addResource(new RInput());
+world.addResource(new RRaycast());
 
 //initialize entities
+//FTrack(world);
 
 //systems
 world.addSystem(new SInputInit());
+world.addSystem(new SRaycastPlane());
 world.addSystem(new STime());
 world.addSystem(new SMovement());
 world.addSystem(new STransformSync());
+world.addSystem(new SDrawTrack());
 world.addSystem(new SRender());
 world.addSystem(new SInputReset());
 

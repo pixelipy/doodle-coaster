@@ -217,4 +217,16 @@ export class World {
             yield [entity, ...result] as [number, ...T];
         }
     }
+
+    getSingleton<T>(componentClass: ComponentClass<T>): T | undefined {
+        const map = this.components.get(componentClass)
+        if (!map || map.size === 0) return undefined
+
+        if (map.size > 1) {
+            console.warn(`getSingleton(${componentClass.name}) found multiple instances`)
+        }
+
+        // return first
+        return map.values().next().value
+    }
 }

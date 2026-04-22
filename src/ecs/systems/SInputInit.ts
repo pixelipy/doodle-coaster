@@ -23,6 +23,44 @@ export class SInputInit extends System {
             input.keysDown.delete(e.key);
             input.keysReleased.add(e.key);
         });
+
+        window.addEventListener("mousedown", (e) => {
+            if (e.button === 0) {
+                if (!input.lmbDown) {
+                    input.lmbPressed = true;
+                }
+                input.lmbDown = true;
+            } else if (e.button === 1) {
+                if (!input.mmbDown) {
+                    input.mmbPressed = true;
+                }
+                input.mmbDown = true;
+            } else if (e.button === 2) {
+                if (!input.rmbDown) {
+                    input.rmbPressed = true;
+                }
+                input.rmbDown = true;
+            }
+        });
+
+        window.addEventListener("mouseup", (e) => {
+            if (e.button === 0) {
+                input.lmbDown = false;
+                input.lmbReleased = true;
+            } else if (e.button === 1) {
+                input.mmbDown = false;
+                input.mmbReleased = true;
+            } else if (e.button === 2) {
+                input.rmbDown = false;
+                input.rmbReleased = true;
+            }
+        });
+
+        window.addEventListener("mousemove", (e) => {
+            input.mousePosition.set(e.clientX, e.clientY);
+            console.log(`Mouse moved: (${e.clientX}, ${e.clientY})`);
+        });
+
     }
 
 }

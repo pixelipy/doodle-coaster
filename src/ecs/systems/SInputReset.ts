@@ -13,5 +13,11 @@ export class SInputReset extends System {
         const input = world.getResource(RInput)!;
         input.keysPressed.clear();
         input.keysReleased.clear();
+        input.lmbPressed = false;
+        input.lmbReleased = false;
+        input.mmbPressed = false;
+        input.mmbReleased = false;
+        input.rmbPressed = false;
+        input.rmbReleased = false;
     }
 }
