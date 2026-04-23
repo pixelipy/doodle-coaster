@@ -5,6 +5,7 @@ import { CTrack } from "../components/CTrack"
 import { CPosition, CRotation } from "../components/CTransform"
 import { CVelocity } from "../components/CVelocity"
 import { ESimulationState, RSimulationState } from "../resources/RSimulationState"
+import { RTime } from "../resources/RTime"
 import { Vector3 } from "three"
 
 const GRAVITY = 3
@@ -26,6 +27,16 @@ export class SCart extends System {
         return Math.atan2(direction.y, direction.x)
     }
 
+    private closestVisualAngle(angle: number, referenceAngle: number) {
+        const direct = this.normalizeAtAngle(angle)
+        const flipped = this.normalizeAtAngle(angle + Math.PI)
+
+        const directDelta = Math.abs(this.normalizeAtAngle(direct - referenceAngle))
+        const flippedDelta = Math.abs(this.normalizeAtAngle(flipped - referenceAngle))
+
+        return flippedDelta < directDelta ? flipped : direct
+    }
+
     private setRotationAngle(rotation: CRotation, angle: number) {
         rotation.rotation.x = 0
         rotation.rotation.y = 0
@@ -33,8 +44,25 @@ export class SCart extends System {
         rotation.dirty = true
     }
 
+    private beginInterpolatedStep(pos: CPosition, rotation?: CRotation) {
+        pos.previousPosition.copy(pos.position)
+
+        if (rotation) {
+            rotation.previousRotation.copy(rotation.rotation)
+        }
+    }
+
+    private snapInterpolatedState(pos: CPosition, rotation?: CRotation) {
+        pos.previousPosition.copy(pos.position)
+
+        if (rotation) {
+            rotation.previousRotation.copy(rotation.rotation)
+        }
+    }
+
     private resetCart(world: World, entity: number, cart: CCart, pos: CPosition, vel: CVelocity) {
         pos.position.copy(cart.spawnPosition)
+        pos.previousPosition.copy(cart.spawnPosition)
         pos.dirty = true
 
         vel.velocity.set(0, 0, 0)
@@ -42,6 +70,7 @@ export class SCart extends System {
         const rotation = world.getComponent(entity, CRotation)
         if (rotation) {
             rotation.rotation.copy(cart.spawnRotation)
+            rotation.previousRotation.copy(cart.spawnRotation)
             rotation.dirty = true
         }
 
@@ -54,9 +83,10 @@ export class SCart extends System {
         cart.reattachCooldown = 0
     }
 
-    update(world: World, dt: number): void {
+    update(world: World, _dt: number): void {
 
         const sim = world.getResource(RSimulationState)!
+        const time = world.getResource(RTime)!
 
         if (sim.state === ESimulationState.DrawingTrack) {
             for (const [e, cart, pos, vel] of world.query3(CCart, CPosition, CVelocity)) {
@@ -66,84 +96,94 @@ export class SCart extends System {
             return
         }
 
-        for (const [e, cart, pos, vel] of world.query3(CCart, CPosition, CVelocity)) {
-            const rotation = world.getComponent(e, CRotation)
-            cart.reattachCooldown = Math.max(0, cart.reattachCooldown - dt)
+        if (time.pendingFixedSteps <= 0) return
 
-            // -------------------------
-            // FREE
-            // -------------------------
-            if (!cart.attached) {
+        for (let step = 0; step < time.pendingFixedSteps; step++) {
+            const dt = time.fixedTimestep
 
-                vel.velocity.y -= GRAVITY * dt
+            for (const [e, cart, pos, vel] of world.query3(CCart, CPosition, CVelocity)) {
+                const rotation = world.getComponent(e, CRotation)
+                this.beginInterpolatedStep(pos, rotation)
+                cart.reattachCooldown = Math.max(0, cart.reattachCooldown - dt)
 
-                const prevPos = pos.position.clone()
-                pos.position.addScaledVector(vel.velocity, dt)
+                // -------------------------
+                // FREE
+                // -------------------------
+                if (!cart.attached) {
+
+                    vel.velocity.y -= GRAVITY * dt
+
+                    const prevPos = pos.position.clone()
+                    pos.position.addScaledVector(vel.velocity, dt)
+                    pos.dirty = true
+
+                    if (rotation){
+                        this.setRotationAngle(rotation, this.normalizeAtAngle(rotation.rotation.z + cart.angularVelocity * dt))
+                    }
+
+                    this.tryAttach(world, cart, prevPos, pos, vel, rotation)
+                    continue
+                }
+
+                // -------------------------
+                // ATTACHED
+                // -------------------------
+                const track = world.getComponent(cart.trackId!, CTrack)
+                if (!track || !track.curve) continue
+
+                const curve = track.curve
+                const length = track.curveLength
+                if (length <= ROTATION_EPSILON) continue
+
+                const tangent = curve.getTangentAt(cart.t)
+
+                // gravity along slope
+                const slope = tangent.y
+                cart.speed += -GRAVITY * slope * dt
+
+                // clamp speed
+                cart.speed = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, cart.speed))
+
+                // move along curve
+                const nextT = cart.t + (cart.speed * dt) / length
+
+                // end of track → detach
+                if (nextT <= 0 || nextT >= 1) {
+                    const releaseTangent = curve.getTangentAt(cart.t)
+                    const releaseVelocity = releaseTangent.clone().multiplyScalar(cart.speed)
+
+                    this.detach(cart, vel, releaseVelocity)
+                    continue
+                }
+
+                const clampedT = Math.max(0, Math.min(1, nextT))
+                const nextPoint = curve.getPointAt(clampedT)
+                const nextTangent = curve.getTangentAt(clampedT)
+
+                const railVelocity = nextTangent.clone().multiplyScalar(cart.speed)
+
+                // apply transform
+                cart.t = clampedT
+                pos.position.copy(nextPoint)
                 pos.dirty = true
 
-                if (rotation){
-                    this.setRotationAngle(rotation, this.normalizeAtAngle(rotation.rotation.z + cart.angularVelocity * dt))
+                vel.velocity.copy(railVelocity)
+
+                const angle = this.tangentAngle(railVelocity)
+                if (angle != null) {
+                    const referenceAngle = rotation ? rotation.rotation.z : cart.prevTrackAngle ?? angle
+                    const visualAngle = this.closestVisualAngle(angle, referenceAngle)
+
+                    if (cart.prevTrackAngle !== null && dt > 0) {
+                        const deltaAngle = this.normalizeAtAngle(visualAngle - cart.prevTrackAngle)
+                        cart.angularVelocity = deltaAngle / dt
+                    }else{
+                        cart.angularVelocity = 0
+                    }
+                    cart.prevTrackAngle = visualAngle
+
+                    if (rotation) this.setRotationAngle(rotation, visualAngle)
                 }
-
-                this.tryAttach(world, cart, prevPos, pos, vel, rotation)
-                continue
-            }
-
-            // -------------------------
-            // ATTACHED
-            // -------------------------
-            const track = world.getComponent(cart.trackId!, CTrack)
-            if (!track || !track.curve) continue
-
-            const curve = track.curve
-            const length = track.curveLength
-            if (length <= ROTATION_EPSILON) continue
-
-            const tangent = curve.getTangentAt(cart.t)
-
-            // gravity along slope
-            const slope = tangent.y
-            cart.speed += -GRAVITY * slope * dt
-
-            // clamp speed
-            cart.speed = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, cart.speed))
-
-            // move along curve
-            const nextT = cart.t + (cart.speed * dt) / length
-
-            // end of track → detach
-            if (nextT <= 0 || nextT >= 1) {
-                const releaseTangent = curve.getTangentAt(cart.t)
-                const releaseVelocity = releaseTangent.clone().multiplyScalar(cart.speed)
-
-                this.detach(cart, vel, releaseVelocity)
-                continue
-            }
-
-            const clampedT = Math.max(0, Math.min(1, nextT))
-            const nextPoint = curve.getPointAt(clampedT)
-            const nextTangent = curve.getTangentAt(clampedT)
-
-            const railVelocity = nextTangent.clone().multiplyScalar(cart.speed)
-
-            // apply transform
-            cart.t = clampedT
-            pos.position.copy(nextPoint)
-            pos.dirty = true
-
-            vel.velocity.copy(railVelocity)
-
-            const angle = this.tangentAngle(nextTangent)
-            if (angle != null) {
-                if (cart.prevTrackAngle !== null && dt > 0) {
-                    const deltaAngle = this.normalizeAtAngle(angle - cart.prevTrackAngle)
-                    cart.angularVelocity = deltaAngle / dt
-                }else{
-                    cart.angularVelocity = 0
-                }
-                cart.prevTrackAngle = angle
-
-                if (rotation) this.setRotationAngle(rotation, angle)
             }
         }
     }
@@ -208,6 +248,7 @@ export class SCart extends System {
         cart.lastTrackId = bestTrackId
 
         pos.position.copy(bestPoint)
+        pos.previousPosition.copy(bestPoint)
         pos.dirty = true
 
         const tangent = bestTrack.curve!.getTangentAt(cart.t)
@@ -217,11 +258,17 @@ export class SCart extends System {
 
         vel.velocity.copy(tangent).multiplyScalar(cart.speed)
 
-        const angle = this.tangentAngle(tangent)
+        const angle = this.tangentAngle(vel.velocity)
         if (angle != null) {
-            cart.prevTrackAngle = angle
+            const referenceAngle = rotation ? rotation.rotation.z : angle
+            const visualAngle = this.closestVisualAngle(angle, referenceAngle)
+
+            cart.prevTrackAngle = visualAngle
             cart.angularVelocity = 0
-            if (rotation) this.setRotationAngle(rotation, angle)
+            if (rotation) {
+                this.setRotationAngle(rotation, visualAngle)
+                rotation.previousRotation.copy(rotation.rotation)
+            }
         }
 
         cart.attached = true

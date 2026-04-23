@@ -28,11 +28,12 @@ export class World {
         return entityId;
     }
 
-    destroyEntity(entityId: number): void {
+    destroyEntity(entityId: number, disposeOf?: () => void): void {
         this.entities.delete(entityId);
         for (const componentMap of this.components.values()) {
             componentMap.delete(entityId);
         }
+        disposeOf?.();
     }
 
     // --------------------------------------------------

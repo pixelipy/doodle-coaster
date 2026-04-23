@@ -6,10 +6,12 @@ import type { World } from "../core/world";
 import { ESimulationState, RSimulationState } from "../resources/RSimulationState";
 import { CCamera } from "../components/CCamera";
 import { RInput } from "../resources/RInput";
+import { RTime } from "../resources/RTime";
 
 export class SCameraController extends System {
     update(world: World, dt: number): void {
         const input = world.getResource(RInput)!;
+        const time = world.getResource(RTime)!;
         const cameraComp = world.getSingleton(CCamera)!;
         const camera = cameraComp.cameraObject;
 
@@ -52,7 +54,7 @@ export class SCameraController extends System {
 
         if (cart) {
             const pos = world.getComponent(cameraComp.targetId, CPosition)!;
-            const targetPos = pos.position.clone();
+            const targetPos = pos.previousPosition.clone().lerp(pos.position, time.interpolationAlpha);
             targetPos.z += 5; // offset back so we can see the cart
 
             // smooth follow

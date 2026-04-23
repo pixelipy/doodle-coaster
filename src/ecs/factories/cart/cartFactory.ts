@@ -1,10 +1,11 @@
 import { BoxGeometry, Mesh, MeshBasicMaterial, MeshNormalMaterial, Object3D } from "three";
-import { CCart } from "../components/CCart";
-import type { World } from "../core/world";
-import { RThree } from "../resources/RThree";
-import { CObject3D } from "../components/CObject3D";
-import { CVelocity } from "../components/CVelocity";
-import { CPosition, CRotation } from "../components/CTransform";
+import type { World } from "../../core/world";
+import { RThree } from "../../resources/RThree";
+import { CCart } from "../../components/CCart";
+import { CPosition, CRotation } from "../../components/CTransform";
+import { CVelocity } from "../../components/CVelocity";
+import { CObject3D } from "../../components/CObject3D";
+
 
 export function FCart(world: World): number {
 

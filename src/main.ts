@@ -27,23 +27,19 @@ import { SRaycastPlane } from './ecs/systems/SRaycastPlane';
 import { SDrawTrack } from './ecs/systems/SDrawTrack';
 import { RTrackManager } from './ecs/resources/RTrackManager';
 import { SCart } from './ecs/systems/SCart';
-import { FCart } from './ecs/factories/cartFactory';
 import { RSimulationState } from './ecs/resources/RSimulationState';
 import { SUpdateSimulation } from './ecs/systems/SUpdateSimulation';
-import { CPosition, CRotation } from './ecs/components/CTransform';
-import { CCart } from './ecs/components/CCart';
-import { FPassenger } from './ecs/factories/passengerFactory';
-import { CPassenger } from './ecs/components/CPassenger';
 import { SPassenger } from './ecs/systems/SPassenger';
-import { CVelocity } from './ecs/components/CVelocity';
 import { SCameraController } from './ecs/systems/SCameraController';
 import { FCamera } from './ecs/factories/cameraFactory';
+import { FCart4Passengers } from './ecs/factories/cart/cart4passengers';
+import { RRng } from './ecs/resources/RRng';
 
 const world = new World();
 const three = new RThree();
 
-const grid = new GridHelper(100, 100 / 1.5);
-grid.position.add(new Vector3(0.2, -0.5, 0.0)); // Slightly lower the grid to prevent z-fighting with the player
+const grid = new GridHelper(200, 200 / 4);
+grid.position.add(new Vector3(0.2, -15, 0.0)); // Slightly lower the grid to prevent z-fighting with the player
 three.scene.add(grid);
 
 const assetManager = new RAssetManager();
@@ -57,6 +53,7 @@ await assetManager.loadAll({
 //Initilize Resources
 world.addResource(three);
 world.addResource(assetManager);
+world.addResource(new RRng());
 world.addResource(new RTrackManager());
 world.addResource(new RPlayerSettings());
 world.addResource(new RGrid({ cellSize: 1.5 }));
@@ -68,53 +65,7 @@ world.addResource(new RSimulationState());
 
 //initialize entities
 //FTrack(world);
-const cartId = FCart(world);
-
-const cartPos = world.getComponent(cartId, CPosition)!;
-cartPos.position.set(0, 0, 0.0);
-const cart = world.getComponent(cartId, CCart)!;
-cart.spawnPosition.copy(cartPos.position);
-
-const cartRotation = world.getComponent(cartId, CRotation)!;
-cart.spawnRotation.copy(cartRotation.rotation);
-
-// number of passengers
-const count = 4 // try 4 (2x2), 9 (3x3), etc.
-const size = Math.ceil(Math.sqrt(count)) // grid size
-
-const spacing = 0.12
-const height = 0.15
-
-for (let i = 0; i < count; i++) {
-
-    const x = i % size
-    const z = Math.floor(i / size)
-
-    // center the grid
-    const offsetX = (x - (size - 1) / 2) * spacing
-    const offsetZ = (z - (size - 1) / 2) * spacing
-
-    const offset = new Vector3(offsetX, height, offsetZ)
-
-    // 🔴 IMPORTANT: spawn already at correct position
-    const spawnPos = cartPos.position.clone().add(offset)
-
-    const p = FPassenger(world, spawnPos)
-    const passenger = world.getComponent(p, CPassenger)!
-
-    passenger.offset.copy(offset)
-    passenger.spawnPosition.copy(spawnPos)
-    passenger.attached = true
-    passenger.cartId = cartId
-    passenger.homeCartId = cartId
-    passenger.airtimeCooldown = 0.3
-    passenger.weight = 1 + (Math.random() - 0.5) * 0.05; // random weight for fun
-
-    const vel = world.getComponent(p, CVelocity)!
-    const cartVel = world.getComponent(cartId, CVelocity)!
-
-    vel.velocity.copy(cartVel.velocity)
-}
+const cartId = FCart4Passengers(world)
 
 //creates camera component
 FCamera(world, cartId);
@@ -135,8 +86,9 @@ world.addSystem(new SInputReset());
 let lastTime = performance.now();
 
 function gameloop() {
-    const deltaTime = (performance.now() - lastTime) / 1000;
-    lastTime = performance.now();
+    const now = performance.now();
+    const deltaTime = (now - lastTime) / 1000;
+    lastTime = now;
     world.update(deltaTime);
     requestAnimationFrame(gameloop);
 }
