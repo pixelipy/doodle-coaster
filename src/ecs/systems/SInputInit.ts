@@ -57,6 +57,7 @@ export class SInputInit extends System {
         });
 
         window.addEventListener("mousemove", (e) => {
+            input.mouseDelta.set(e.movementX, e.movementY);
             input.mousePosition.set(e.clientX, e.clientY);
         });
 

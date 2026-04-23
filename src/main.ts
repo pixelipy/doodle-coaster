@@ -20,22 +20,24 @@ import { RGrid } from './ecs/resources/RGrid';
 import { STransformSync } from './ecs/systems/STransformSync';
 import { SInputReset } from './ecs/systems/SInputReset';
 import { SInputInit } from './ecs/systems/SInputInit';
-import { SMovement } from './ecs/systems/SMovement';
 import { STime } from './ecs/systems/STime';
 import { SRender } from './ecs/systems/SRender';
 import { RRaycast } from './ecs/resources/RRaycast';
 import { SRaycastPlane } from './ecs/systems/SRaycastPlane';
-import { FTrack } from './ecs/factories/trackFactory';
 import { SDrawTrack } from './ecs/systems/SDrawTrack';
 import { RTrackManager } from './ecs/resources/RTrackManager';
 import { SCart } from './ecs/systems/SCart';
 import { FCart } from './ecs/factories/cartFactory';
 import { RSimulationState } from './ecs/resources/RSimulationState';
 import { SUpdateSimulation } from './ecs/systems/SUpdateSimulation';
-import { CPosition } from './ecs/components/CTransform';
+import { CPosition, CRotation } from './ecs/components/CTransform';
+import { CCart } from './ecs/components/CCart';
 import { FPassenger } from './ecs/factories/passengerFactory';
 import { CPassenger } from './ecs/components/CPassenger';
 import { SPassenger } from './ecs/systems/SPassenger';
+import { CVelocity } from './ecs/components/CVelocity';
+import { SCameraController } from './ecs/systems/SCameraController';
+import { FCamera } from './ecs/factories/cameraFactory';
 
 const world = new World();
 const three = new RThree();
@@ -69,7 +71,12 @@ world.addResource(new RSimulationState());
 const cartId = FCart(world);
 
 const cartPos = world.getComponent(cartId, CPosition)!;
-cartPos.position.set(0, 0, 0.15);
+cartPos.position.set(0, 0, 0.0);
+const cart = world.getComponent(cartId, CCart)!;
+cart.spawnPosition.copy(cartPos.position);
+
+const cartRotation = world.getComponent(cartId, CRotation)!;
+cart.spawnRotation.copy(cartRotation.rotation);
 
 // number of passengers
 const count = 4 // try 4 (2x2), 9 (3x3), etc.
@@ -96,11 +103,21 @@ for (let i = 0; i < count; i++) {
     const passenger = world.getComponent(p, CPassenger)!
 
     passenger.offset.copy(offset)
+    passenger.spawnPosition.copy(spawnPos)
     passenger.attached = true
     passenger.cartId = cartId
+    passenger.homeCartId = cartId
+    passenger.airtimeCooldown = 0.3
+    passenger.weight = 1 + (Math.random() - 0.5) * 0.05; // random weight for fun
+
+    const vel = world.getComponent(p, CVelocity)!
+    const cartVel = world.getComponent(cartId, CVelocity)!
+
+    vel.velocity.copy(cartVel.velocity)
 }
 
-
+//creates camera component
+FCamera(world, cartId);
 
 //systems
 world.addSystem(new SInputInit());
@@ -110,6 +127,7 @@ world.addSystem(new STime());
 world.addSystem(new SCart());
 world.addSystem(new SPassenger());
 world.addSystem(new STransformSync());
+world.addSystem(new SCameraController());
 world.addSystem(new SDrawTrack());
 world.addSystem(new SRender());
 world.addSystem(new SInputReset());

@@ -20,4 +20,5 @@ export class RInput {
     rmbReleased: boolean = false
 
     mousePosition: Vector2 = new Vector2() //in screen space, z=0
+    mouseDelta: Vector2 = new Vector2() //change in mouse position since last frame
 }

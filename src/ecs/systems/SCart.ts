@@ -7,50 +7,66 @@ import { CVelocity } from "../components/CVelocity"
 import { ESimulationState, RSimulationState } from "../resources/RSimulationState"
 import { Vector3 } from "three"
 
-const GRAVITY = 6
+const GRAVITY = 3
 const ATTACH_DIST = 0.2
 const REATTACH_COOLDOWN = 0.3
-const MIN_SPEED = 0.35
 const MAX_SPEED = 8
-const MAX_FORCE = 10
-const ROTATION_EPSILON = 0.001
+const ROTATION_EPSILON = 0.0001
 
 export class SCart extends System {
 
-    private alignRotation(rotation: CRotation, tangent: Vector3, speed: number) {
+    private normalizeAtAngle(angle: number) {
+        while (angle > Math.PI) angle -= 2 * Math.PI
+        while (angle < -Math.PI) angle += 2 * Math.PI
+        return angle
+    }
 
-        let facing = tangent
+    private tangentAngle(direction: Vector3) {
+        if (direction.lengthSq() < ROTATION_EPSILON) return null
+        return Math.atan2(direction.y, direction.x)
+    }
 
-        // avoid flipping when almost stopped
-        if (Math.abs(speed) > 0.01) {
-            facing = speed >= 0 ? tangent : tangent.clone().negate()
-        }
-
-        if (facing.lengthSq() <= ROTATION_EPSILON * ROTATION_EPSILON) return
-
+    private setRotationAngle(rotation: CRotation, angle: number) {
         rotation.rotation.x = 0
         rotation.rotation.y = 0
-        rotation.rotation.z = Math.atan2(facing.y, facing.x)
+        rotation.rotation.z = angle
         rotation.dirty = true
     }
 
-    private alignRotationToVelocity(rotation: CRotation, velocity: Vector3) {
-        const planarSpeedSq = velocity.x * velocity.x + velocity.y * velocity.y
-        if (planarSpeedSq <= ROTATION_EPSILON * ROTATION_EPSILON) return
+    private resetCart(world: World, entity: number, cart: CCart, pos: CPosition, vel: CVelocity) {
+        pos.position.copy(cart.spawnPosition)
+        pos.dirty = true
 
-        rotation.rotation.x = 0
-        rotation.rotation.y = 0
-        rotation.rotation.z = Math.atan2(velocity.y, velocity.x)
-        rotation.dirty = true
+        vel.velocity.set(0, 0, 0)
+
+        const rotation = world.getComponent(entity, CRotation)
+        if (rotation) {
+            rotation.rotation.copy(cart.spawnRotation)
+            rotation.dirty = true
+        }
+
+        cart.attached = false
+        cart.trackId = null
+        cart.lastTrackId = null
+        cart.t = 0
+        cart.speed = cart.defaultSpeed
+        cart.angularVelocity = 0
+        cart.reattachCooldown = 0
     }
 
     update(world: World, dt: number): void {
 
         const sim = world.getResource(RSimulationState)!
-        if (sim.state !== ESimulationState.Playing) return
+
+        if (sim.state === ESimulationState.DrawingTrack) {
+            for (const [e, cart, pos, vel] of world.query3(CCart, CPosition, CVelocity)) {
+                this.resetCart(world, e, cart, pos, vel)
+            }
+
+            return
+        }
 
         for (const [e, cart, pos, vel] of world.query3(CCart, CPosition, CVelocity)) {
-
             const rotation = world.getComponent(e, CRotation)
             cart.reattachCooldown = Math.max(0, cart.reattachCooldown - dt)
 
@@ -62,11 +78,12 @@ export class SCart extends System {
                 vel.velocity.y -= GRAVITY * dt
 
                 const prevPos = pos.position.clone()
-
                 pos.position.addScaledVector(vel.velocity, dt)
                 pos.dirty = true
 
-                if (rotation) this.alignRotationToVelocity(rotation, vel.velocity)
+                if (rotation){
+                    this.setRotationAngle(rotation, this.normalizeAtAngle(rotation.rotation.z + cart.angularVelocity * dt))
+                }
 
                 this.tryAttach(world, cart, prevPos, pos, vel, rotation)
                 continue
@@ -87,48 +104,46 @@ export class SCart extends System {
             // gravity along slope
             const slope = tangent.y
             cart.speed += -GRAVITY * slope * dt
-            cart.speed = Math.max(Math.min(cart.speed, MAX_SPEED), -MAX_SPEED)
 
-            const nextT = Math.max(0, Math.min(1, cart.t + (cart.speed * dt) / length))
-            const nextPoint = curve.getPointAt(nextT)
-            const nextTangent = curve.getTangentAt(nextT)
+            // clamp speed
+            cart.speed = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, cart.speed))
+
+            // move along curve
+            const nextT = cart.t + (cart.speed * dt) / length
+
+            // end of track → detach
+            if (nextT <= 0 || nextT >= 1) {
+                const releaseTangent = curve.getTangentAt(cart.t)
+                const releaseVelocity = releaseTangent.clone().multiplyScalar(cart.speed)
+
+                this.detach(cart, vel, releaseVelocity)
+                continue
+            }
+
+            const clampedT = Math.max(0, Math.min(1, nextT))
+            const nextPoint = curve.getPointAt(clampedT)
+            const nextTangent = curve.getTangentAt(clampedT)
 
             const railVelocity = nextTangent.clone().multiplyScalar(cart.speed)
 
-            // stall
-            if (Math.abs(cart.speed) < MIN_SPEED && nextT > 0.95) {
-                this.detach(cart, vel, railVelocity)
-                continue
-            }
-
-            // derail
-            if (nextT < 0.99) {
-                const lookT = Math.min(nextT + 0.01, 1)
-                const lookTan = curve.getTangentAt(lookT)
-                const turn = 1 - nextTangent.dot(lookTan)
-                const force = cart.speed * cart.speed * turn
-
-                if (force > MAX_FORCE) {
-                    this.detach(cart, vel, railVelocity)
-                    continue
-                }
-            }
-
-            // end of track
-            if (nextT <= 0 || nextT >= 1) {
-                this.detach(cart, vel, railVelocity)
-                continue
-            }
-
             // apply transform
-            cart.t = nextT
+            cart.t = clampedT
             pos.position.copy(nextPoint)
             pos.dirty = true
+
             vel.velocity.copy(railVelocity)
 
-            // ✅ FIXED ROTATION (this was missing)
-            if (rotation) {
-                this.alignRotation(rotation, nextTangent, cart.speed)
+            const angle = this.tangentAngle(nextTangent)
+            if (angle != null) {
+                if (cart.prevTrackAngle !== null && dt > 0) {
+                    const deltaAngle = this.normalizeAtAngle(angle - cart.prevTrackAngle)
+                    cart.angularVelocity = deltaAngle / dt
+                }else{
+                    cart.angularVelocity = 0
+                }
+                cart.prevTrackAngle = angle
+
+                if (rotation) this.setRotationAngle(rotation, angle)
             }
         }
     }
@@ -138,6 +153,7 @@ export class SCart extends System {
         cart.attached = false
         cart.lastTrackId = cart.trackId
         cart.trackId = null
+        cart.prevTrackAngle = null
         cart.reattachCooldown = REATTACH_COOLDOWN
     }
 
@@ -158,9 +174,7 @@ export class SCart extends System {
 
         for (const [trackId, track] of world.query1(CTrack)) {
 
-            // block only same track during cooldown
             if (cart.reattachCooldown > 0 && trackId === cart.lastTrackId) continue
-
             if (!track.sampled || track.sampled.length < 2) continue
 
             for (let i = 0; i < track.sampled.length - 1; i++) {
@@ -199,12 +213,15 @@ export class SCart extends System {
         const tangent = bestTrack.curve!.getTangentAt(cart.t)
 
         const projectedSpeed = vel.velocity.dot(tangent)
-        cart.speed = Math.max(Math.min(projectedSpeed, MAX_SPEED), -MAX_SPEED)
+        cart.speed = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, projectedSpeed))
 
         vel.velocity.copy(tangent).multiplyScalar(cart.speed)
 
-        if (rotation) {
-            this.alignRotation(rotation, tangent, cart.speed)
+        const angle = this.tangentAngle(tangent)
+        if (angle != null) {
+            cart.prevTrackAngle = angle
+            cart.angularVelocity = 0
+            if (rotation) this.setRotationAngle(rotation, angle)
         }
 
         cart.attached = true
@@ -213,7 +230,7 @@ export class SCart extends System {
 
 function closestPointBetweenSegments(
     p1: Vector3,
-    p2: Vector3,
+    _p2: Vector3,
     a: Vector3,
     b: Vector3
 ): Vector3 | null {

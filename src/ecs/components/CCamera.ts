@@ -7,7 +7,9 @@ export class CCamera extends Component {
     smoothness: number;
     offset: number;
     cameraObject: PerspectiveCamera; // This will hold the actual Three.js camera object
-    rotation: Vector3; 
+    rotation: Vector3;
+    panOffset: Vector3 = new Vector3(0, 0, 0); // allows manual panning when not following
+    panningSpeed: number = 1;
 
     constructor(targetId: number, camera: PerspectiveCamera, {smoothness = 5, offset = -60, rotation = new Vector3(-Math.PI/4, Math.PI/8, 0)} : {smoothness?: number, offset?: number, rotation?: Vector3} = {}) {
         super();

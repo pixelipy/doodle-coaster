@@ -9,7 +9,6 @@ import { FTrack } from "../factories/trackFactory"
 
 const MIN_DIST = 0.1
 const SNAP_DIST = 0.1
-const TANGENT_PUSH = 0.05
 
 export class SDrawTrack extends System {
 
@@ -18,30 +17,23 @@ export class SDrawTrack extends System {
         const drawing = world.getResource(RTrackManager)!
         const raycast = world.getResource(RRaycast)!
 
-        // 🔹 Start new track
+        // Start drawing or extend an existing snapped endpoint.
         if (input.lmbPressed) {
             const mouse = raycast.hitPoint.clone()
             mouse.z = 0
 
-            const snap = findClosestEndpointWithTangent(world, mouse, SNAP_DIST)
-
-            const entity = FTrack(world)
-            const track = world.getComponent(entity, CTrack)!
+            const snap = findClosestEndpoint(world, mouse, SNAP_DIST)
 
             if (snap) {
-                const { point, tangent } = snap
-
-                // start exactly on endpoint
-                track.rawPoints.push(point.clone())
-
-                // push slightly along tangent so curve continues smoothly
-                const next = point.clone().add(tangent.clone().multiplyScalar(TANGENT_PUSH))
-                track.rawPoints.push(next)
+                drawing.currentTrackId = snap.trackId
+                drawing.extendFromStart = snap.endpoint === "start"
             } else {
+                const entity = FTrack(world)
+                const track = world.getComponent(entity, CTrack)!
                 track.rawPoints.push(mouse)
+                drawing.currentTrackId = entity
+                drawing.extendFromStart = false
             }
-
-            drawing.currentTrackId = entity
         }
 
         // 🔹 Stop drawing
@@ -53,6 +45,7 @@ export class SDrawTrack extends System {
             }
 
             drawing.currentTrackId = null
+            drawing.extendFromStart = false
             return
         }
 
@@ -69,10 +62,17 @@ export class SDrawTrack extends System {
             const p = raycast.hitPoint.clone()
             p.z = 0
 
-            const last = track.rawPoints[track.rawPoints.length - 1]
+            const anchor = drawing.extendFromStart
+                ? track.rawPoints[0]
+                : track.rawPoints[track.rawPoints.length - 1]
 
-            if (!last || last.distanceTo(p) > MIN_DIST) {
-                track.rawPoints.push(p)
+            if (!anchor || anchor.distanceTo(p) > MIN_DIST) {
+                if (drawing.extendFromStart) {
+                    track.rawPoints.unshift(p)
+                } else {
+                    track.rawPoints.push(p)
+                }
+
                 dirty = true
             }
         }
@@ -92,47 +92,45 @@ export class SDrawTrack extends System {
 }
 
 
-// Helper: find closest endpoint + tangent
-function findClosestEndpointWithTangent(
+// Helper: find closest track endpoint.
+function findClosestEndpoint(
     world: World,
     p: Vector3,
     maxDist: number
-): { point: Vector3, tangent: Vector3 } | null {
+): { trackId: number, endpoint: "start" | "end" } | null {
 
-    let closestPoint: Vector3 | null = null
-    let closestTangent: Vector3 | null = null
+    let closestTrackId: number | null = null
+    let closestEndpoint: "start" | "end" | null = null
     let minDist = maxDist
 
-    for (const [, track] of world.query1(CTrack)) {
+    for (const [trackId, track] of world.query1(CTrack)) {
         if (track.rawPoints.length < 2) continue
 
         const first = track.rawPoints[0]
-        const second = track.rawPoints[1]
 
         const last = track.rawPoints[track.rawPoints.length - 1]
-        const beforeLast = track.rawPoints[track.rawPoints.length - 2]
 
         // check start
         const d1 = first.distanceTo(p)
         if (d1 < minDist) {
             minDist = d1
-            closestPoint = first
-            closestTangent = first.clone().sub(second).normalize() // outward
+            closestTrackId = trackId
+            closestEndpoint = "start"
         }
 
         // check end
         const d2 = last.distanceTo(p)
         if (d2 < minDist) {
             minDist = d2
-            closestPoint = last
-            closestTangent = last.clone().sub(beforeLast).normalize() // outward
+            closestTrackId = trackId
+            closestEndpoint = "end"
         }
     }
 
-    if (!closestPoint || !closestTangent) return null
+    if (closestTrackId === null || closestEndpoint === null) return null
 
     return {
-        point: closestPoint,
-        tangent: closestTangent
+        trackId: closestTrackId,
+        endpoint: closestEndpoint
     }
 }
