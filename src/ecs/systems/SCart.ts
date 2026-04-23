@@ -7,12 +7,27 @@ import { CVelocity } from "../components/CVelocity"
 import { ESimulationState, RSimulationState } from "../resources/RSimulationState"
 import { RTime } from "../resources/RTime"
 import { Vector3 } from "three"
+import { sampleTrackRailAtDistance, sampleTrackRailAtSegmentDistance } from "../utils/trackRail"
 
 const GRAVITY = 3
 const ATTACH_DIST = 0.2
 const REATTACH_COOLDOWN = 0.3
 const MAX_SPEED = 8
 const ROTATION_EPSILON = 0.0001
+const ATTACH_EPSILON = 1e-6
+const DEBUG_ATTACH_DIAGNOSTICS = false
+const ANGULAR_VELOCITY_SAMPLE_DISTANCE = 0.3
+const ANGULAR_VELOCITY_EPSILON = 1e-4
+
+type TrackAttachCandidate = {
+    trackId: number
+    track: CTrack
+    segmentIndex: number
+    pointOnTrack: Vector3
+    distanceSq: number
+    endDistanceSq: number
+    curveT: number
+}
 
 export class SCart extends System {
 
@@ -44,15 +59,88 @@ export class SCart extends System {
         rotation.dirty = true
     }
 
-    private beginInterpolatedStep(pos: CPosition, rotation?: CRotation) {
-        pos.previousPosition.copy(pos.position)
-
-        if (rotation) {
-            rotation.previousRotation.copy(rotation.rotation)
-        }
+    private resolveVisualAngle(direction: Vector3, referenceAngle: number) {
+        const angle = this.tangentAngle(direction)
+        if (angle == null) return null
+        return this.closestVisualAngle(angle, referenceAngle)
     }
 
-    private snapInterpolatedState(pos: CPosition, rotation?: CRotation) {
+    private resolveAngularVelocityFromAngles(
+        currentVisualAngle: number | null,
+        nextVisualAngle: number | null,
+        dt: number,
+        fallbackAngularVelocity: number
+    ) {
+        if (currentVisualAngle == null || nextVisualAngle == null || dt <= 0) {
+            return fallbackAngularVelocity
+        }
+
+        const angularVelocity = this.normalizeAtAngle(nextVisualAngle - currentVisualAngle) / dt
+        if (Math.abs(angularVelocity) <= ANGULAR_VELOCITY_EPSILON) {
+            return fallbackAngularVelocity
+        }
+
+        return angularVelocity
+    }
+
+    private sampleTrackDirection(
+        track: CTrack,
+        distanceAlongTrack: number,
+        halfWindow: number
+    ) {
+        const startDistance = Math.max(0, distanceAlongTrack - halfWindow)
+        const endDistance = Math.min(track.trackLength, distanceAlongTrack + halfWindow)
+        if (endDistance - startDistance <= ROTATION_EPSILON) return null
+
+        const startSample = sampleTrackRailAtDistance(
+            track.physicsPoints,
+            track.cumulativeLengths,
+            track.trackLength,
+            startDistance
+        )
+        const endSample = sampleTrackRailAtDistance(
+            track.physicsPoints,
+            track.cumulativeLengths,
+            track.trackLength,
+            endDistance
+        )
+        if (!startSample || !endSample) return null
+
+        const direction = endSample.point.clone().sub(startSample.point)
+        if (direction.lengthSq() <= ROTATION_EPSILON) return null
+
+        return direction
+    }
+
+    private estimateTrackAngularVelocity(
+        track: CTrack,
+        distanceAlongTrack: number,
+        speed: number,
+        referenceAngle: number
+    ) {
+        if (track.trackLength <= ROTATION_EPSILON) return 0
+        if (Math.abs(speed) <= ROTATION_EPSILON) return 0
+
+        const d1 = Math.max(0, distanceAlongTrack - ANGULAR_VELOCITY_SAMPLE_DISTANCE)
+        const d2 = Math.min(track.trackLength, distanceAlongTrack + ANGULAR_VELOCITY_SAMPLE_DISTANCE)
+        const ds = d2 - d1
+        if (ds <= ROTATION_EPSILON) return 0
+
+        const direction1 = this.sampleTrackDirection(track, d1, ANGULAR_VELOCITY_SAMPLE_DISTANCE)
+        const direction2 = this.sampleTrackDirection(track, d2, ANGULAR_VELOCITY_SAMPLE_DISTANCE)
+        if (!direction1 || !direction2) return 0
+
+        const velocity1 = direction1.multiplyScalar(speed >= 0 ? 1 : -1)
+        const velocity2 = direction2.multiplyScalar(speed >= 0 ? 1 : -1)
+        const angle1 = this.resolveVisualAngle(velocity1, referenceAngle)
+        const angle2 = this.resolveVisualAngle(velocity2, angle1 ?? referenceAngle)
+        if (angle1 == null || angle2 == null) return 0
+
+        const deltaAngle = this.normalizeAtAngle(angle2 - angle1)
+        return deltaAngle / (ds / Math.abs(speed))
+    }
+
+    private beginInterpolatedStep(pos: CPosition, rotation?: CRotation) {
         pos.previousPosition.copy(pos.position)
 
         if (rotation) {
@@ -78,9 +166,160 @@ export class SCart extends System {
         cart.trackId = null
         cart.lastTrackId = null
         cart.t = 0
+        cart.distanceAlongTrack = 0
         cart.speed = cart.defaultSpeed
         cart.angularVelocity = 0
+        cart.prevTrackAngle = null
         cart.reattachCooldown = 0
+    }
+
+    private updateFreeCart(
+        world: World,
+        cart: CCart,
+        pos: CPosition,
+        vel: CVelocity,
+        dt: number,
+        rotation?: CRotation
+    ) {
+        vel.velocity.y -= GRAVITY * dt
+
+        const prevPos = pos.position.clone()
+        pos.position.addScaledVector(vel.velocity, dt)
+        pos.dirty = true
+
+        if (rotation) {
+            rotation.rotation.z += cart.angularVelocity * dt
+            rotation.dirty = true
+            cart.prevTrackAngle = rotation.rotation.z
+        }
+
+        this.tryAttach(world, cart, prevPos, pos, vel, rotation)
+    }
+
+    private updateAttachedCart(
+        world: World,
+        cart: CCart,
+        pos: CPosition,
+        vel: CVelocity,
+        dt: number,
+        rotation?: CRotation
+    ) {
+        const track = world.getComponent(cart.trackId!, CTrack)
+        if (!track || track.physicsPoints.length < 2) return
+
+        const length = track.trackLength
+        if (length <= ROTATION_EPSILON) return
+
+        const currentSample = sampleTrackRailAtDistance(
+            track.physicsPoints,
+            track.cumulativeLengths,
+            track.trackLength,
+            cart.distanceAlongTrack
+        )
+        if (!currentSample) return
+
+        const tangent = currentSample.tangent
+
+        cart.speed += -GRAVITY * tangent.y * dt
+        cart.speed = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, cart.speed))
+
+        const nextDistance = cart.distanceAlongTrack + cart.speed * dt
+        if (nextDistance <= 0 || nextDistance >= length) {
+            this.detachAtTrackEnd(track, cart, vel, rotation, tangent, dt, nextDistance)
+            return
+        }
+
+        const clampedDistance = Math.max(0, Math.min(length, nextDistance))
+        const nextSample = sampleTrackRailAtDistance(
+            track.physicsPoints,
+            track.cumulativeLengths,
+            track.trackLength,
+            clampedDistance
+        )
+        if (!nextSample) return
+
+        const railVelocity = nextSample.tangent.clone().multiplyScalar(cart.speed)
+
+        cart.distanceAlongTrack = clampedDistance
+        cart.t = clampedDistance / length
+        pos.position.copy(nextSample.point)
+        pos.dirty = true
+        vel.velocity.copy(railVelocity)
+
+        const currentReferenceAngle = rotation ? rotation.rotation.z : cart.prevTrackAngle ?? 0
+        const currentVisualAngle = this.resolveVisualAngle(tangent, currentReferenceAngle)
+        const nextReferenceAngle = currentVisualAngle ?? currentReferenceAngle
+        const nextVisualAngle = this.resolveVisualAngle(railVelocity, nextReferenceAngle)
+
+        if (nextVisualAngle == null) return
+
+        const curvatureAngularVelocity = this.estimateTrackAngularVelocity(
+            track,
+            cart.distanceAlongTrack,
+            cart.speed,
+            nextVisualAngle
+        )
+        cart.angularVelocity = this.resolveAngularVelocityFromAngles(
+            currentVisualAngle,
+            nextVisualAngle,
+            dt,
+            curvatureAngularVelocity
+        )
+        cart.prevTrackAngle = nextVisualAngle
+
+        if (rotation) {
+            this.setRotationAngle(rotation, nextVisualAngle)
+        }
+    }
+
+    private detachAtTrackEnd(
+        track: CTrack,
+        cart: CCart,
+        vel: CVelocity,
+        rotation: CRotation | undefined,
+        tangent: Vector3,
+        dt: number,
+        nextDistance: number
+    ) {
+        const releaseDistance = Math.max(0, Math.min(track.trackLength, nextDistance))
+        const releaseSample = sampleTrackRailAtDistance(
+            track.physicsPoints,
+            track.cumulativeLengths,
+            track.trackLength,
+            releaseDistance
+        )
+        const releaseTangent = releaseSample?.tangent ?? tangent
+        const releaseVelocity = releaseTangent.clone().multiplyScalar(cart.speed)
+
+        const currentReferenceAngle = rotation ? rotation.rotation.z : cart.prevTrackAngle ?? 0
+        const currentVisualAngle = this.resolveVisualAngle(vel.velocity, currentReferenceAngle)
+        const releaseReferenceAngle = currentVisualAngle ?? currentReferenceAngle
+        const releaseVisualAngle = this.resolveVisualAngle(releaseVelocity, releaseReferenceAngle)
+        const releaseAngularVelocity = this.estimateTrackAngularVelocity(
+            track,
+            releaseDistance,
+            cart.speed,
+            releaseVisualAngle ?? currentReferenceAngle
+        )
+
+        cart.angularVelocity = this.resolveAngularVelocityFromAngles(
+            currentVisualAngle,
+            releaseVisualAngle,
+            dt,
+            Math.abs(releaseAngularVelocity) > ANGULAR_VELOCITY_EPSILON
+                ? releaseAngularVelocity
+                : cart.angularVelocity
+        )
+
+        if (releaseVisualAngle != null) {
+            cart.prevTrackAngle = releaseVisualAngle
+
+            if (rotation) {
+                this.setRotationAngle(rotation, releaseVisualAngle)
+            }
+        }
+
+        this.detach(cart, vel, releaseVelocity)
     }
 
     update(world: World, _dt: number): void {
@@ -106,84 +345,12 @@ export class SCart extends System {
                 this.beginInterpolatedStep(pos, rotation)
                 cart.reattachCooldown = Math.max(0, cart.reattachCooldown - dt)
 
-                // -------------------------
-                // FREE
-                // -------------------------
                 if (!cart.attached) {
-
-                    vel.velocity.y -= GRAVITY * dt
-
-                    const prevPos = pos.position.clone()
-                    pos.position.addScaledVector(vel.velocity, dt)
-                    pos.dirty = true
-
-                    if (rotation){
-                        this.setRotationAngle(rotation, this.normalizeAtAngle(rotation.rotation.z + cart.angularVelocity * dt))
-                    }
-
-                    this.tryAttach(world, cart, prevPos, pos, vel, rotation)
+                    this.updateFreeCart(world, cart, pos, vel, dt, rotation)
                     continue
                 }
 
-                // -------------------------
-                // ATTACHED
-                // -------------------------
-                const track = world.getComponent(cart.trackId!, CTrack)
-                if (!track || !track.curve) continue
-
-                const curve = track.curve
-                const length = track.curveLength
-                if (length <= ROTATION_EPSILON) continue
-
-                const tangent = curve.getTangentAt(cart.t)
-
-                // gravity along slope
-                const slope = tangent.y
-                cart.speed += -GRAVITY * slope * dt
-
-                // clamp speed
-                cart.speed = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, cart.speed))
-
-                // move along curve
-                const nextT = cart.t + (cart.speed * dt) / length
-
-                // end of track → detach
-                if (nextT <= 0 || nextT >= 1) {
-                    const releaseTangent = curve.getTangentAt(cart.t)
-                    const releaseVelocity = releaseTangent.clone().multiplyScalar(cart.speed)
-
-                    this.detach(cart, vel, releaseVelocity)
-                    continue
-                }
-
-                const clampedT = Math.max(0, Math.min(1, nextT))
-                const nextPoint = curve.getPointAt(clampedT)
-                const nextTangent = curve.getTangentAt(clampedT)
-
-                const railVelocity = nextTangent.clone().multiplyScalar(cart.speed)
-
-                // apply transform
-                cart.t = clampedT
-                pos.position.copy(nextPoint)
-                pos.dirty = true
-
-                vel.velocity.copy(railVelocity)
-
-                const angle = this.tangentAngle(railVelocity)
-                if (angle != null) {
-                    const referenceAngle = rotation ? rotation.rotation.z : cart.prevTrackAngle ?? angle
-                    const visualAngle = this.closestVisualAngle(angle, referenceAngle)
-
-                    if (cart.prevTrackAngle !== null && dt > 0) {
-                        const deltaAngle = this.normalizeAtAngle(visualAngle - cart.prevTrackAngle)
-                        cart.angularVelocity = deltaAngle / dt
-                    }else{
-                        cart.angularVelocity = 0
-                    }
-                    cart.prevTrackAngle = visualAngle
-
-                    if (rotation) this.setRotationAngle(rotation, visualAngle)
-                }
+                this.updateAttachedCart(world, cart, pos, vel, dt, rotation)
             }
         }
     }
@@ -193,7 +360,6 @@ export class SCart extends System {
         cart.attached = false
         cart.lastTrackId = cart.trackId
         cart.trackId = null
-        cart.prevTrackAngle = null
         cart.reattachCooldown = REATTACH_COOLDOWN
     }
 
@@ -206,57 +372,117 @@ export class SCart extends System {
         rotation?: CRotation
     ) {
 
-        let bestTrackId: number | null = null
-        let bestTrack: CTrack | null = null
-        let bestT = 0
-        let bestPoint: Vector3 | null = null
-        let bestDist = ATTACH_DIST
+        let bestCandidate: TrackAttachCandidate | null = null
+        const maxAttachDistSq = ATTACH_DIST * ATTACH_DIST
+        const debugCandidates: TrackAttachCandidate[] = []
 
         for (const [trackId, track] of world.query1(CTrack)) {
 
             if (cart.reattachCooldown > 0 && trackId === cart.lastTrackId) continue
-            if (!track.sampled || track.sampled.length < 2) continue
+            const physicsPoints = track.physicsPoints
+            if (!physicsPoints || physicsPoints.length < 2) continue
 
-            for (let i = 0; i < track.sampled.length - 1; i++) {
+            for (let i = 0; i < physicsPoints.length - 1; i++) {
 
-                const a = track.sampled[i]
-                const b = track.sampled[i + 1]
+                const a = physicsPoints[i]
+                const b = physicsPoints[i + 1]
                 if (!a || !b) continue
 
-                const closest = closestPointBetweenSegments(prevPos, pos.position, a, b)
-                if (!closest) continue
+                const closest = closestPointsBetweenSegments(prevPos, pos.position, a, b)
+                if (!closest || closest.distanceSq > maxAttachDistSq + ATTACH_EPSILON) continue
 
-                const d = closest.distanceTo(pos.position)
+                const segmentStartDistance = track.cumulativeLengths[i]
+                const segmentEndDistance = track.cumulativeLengths[i + 1]
+                if (segmentStartDistance === undefined || segmentEndDistance === undefined) continue
 
-                if (d < bestDist) {
-                    bestDist = d
-                    bestTrackId = trackId
-                    bestTrack = track
-                    bestPoint = closest
+                const segmentLength = segmentEndDistance - segmentStartDistance
+                const trackDistance = segmentStartDistance + segmentLength * closest.tSecond
+                const railSample = sampleTrackRailAtSegmentDistance(
+                    physicsPoints,
+                    track.cumulativeLengths,
+                    i,
+                    trackDistance
+                )
+                if (!railSample) continue
 
-                    const segLen = a.distanceTo(b)
-                    const localT = segLen > 0 ? a.distanceTo(closest) / segLen : 0
-                    bestT = (i + localT) / (track.sampled.length - 1)
+                const candidate: TrackAttachCandidate = {
+                    trackId,
+                    track,
+                    segmentIndex: i,
+                    pointOnTrack: railSample.point,
+                    distanceSq: closest.pointOnFirst.distanceToSquared(railSample.point),
+                    endDistanceSq: closest.pointOnFirst.distanceToSquared(pos.position),
+                    curveT: track.trackLength <= ROTATION_EPSILON ? 0 : railSample.distanceAlongTrack / track.trackLength,
+                }
+
+                if (DEBUG_ATTACH_DIAGNOSTICS) {
+                    debugCandidates.push(candidate)
+                }
+
+                if (isBetterTrackAttachCandidate(candidate, bestCandidate)) {
+                    bestCandidate = candidate
                 }
             }
         }
 
-        if (!bestTrack || bestTrackId === null || !bestPoint) return
+        if (!bestCandidate) return
+
+        const bestT = bestCandidate.curveT
+        const bestDistance = bestCandidate.track.trackLength <= ROTATION_EPSILON
+            ? 0
+            : bestT * bestCandidate.track.trackLength
+
+        if (DEBUG_ATTACH_DIAGNOSTICS) {
+            console.log("[SCart attach]", {
+                trackId: bestCandidate.trackId,
+                segmentIndex: bestCandidate.segmentIndex,
+                distanceSq: bestCandidate.distanceSq,
+                endDistanceSq: bestCandidate.endDistanceSq,
+                resolvedT: bestT,
+                candidateCount: debugCandidates.length,
+                candidates: debugCandidates
+                    .slice()
+                    .sort((a, b) => a.distanceSq - b.distanceSq || a.trackId - b.trackId || a.segmentIndex - b.segmentIndex)
+                    .map(candidate => ({
+                        trackId: candidate.trackId,
+                        segmentIndex: candidate.segmentIndex,
+                        distanceSq: candidate.distanceSq,
+                        endDistanceSq: candidate.endDistanceSq,
+                        curveT: candidate.curveT,
+                    })),
+            })
+        }
 
         cart.t = bestT
-        cart.trackId = bestTrackId
-        cart.lastTrackId = bestTrackId
+        cart.distanceAlongTrack = bestDistance
+        cart.trackId = bestCandidate.trackId
+        cart.lastTrackId = bestCandidate.trackId
 
-        pos.position.copy(bestPoint)
-        pos.previousPosition.copy(bestPoint)
+        // Attaching snaps onto the rail sample chosen from the swept free-fall segment.
+        pos.position.copy(bestCandidate.pointOnTrack)
+        pos.previousPosition.copy(bestCandidate.pointOnTrack)
         pos.dirty = true
 
-        const tangent = bestTrack.curve!.getTangentAt(cart.t)
+        const attachSample = sampleTrackRailAtDistance(
+            bestCandidate.track.physicsPoints,
+            bestCandidate.track.cumulativeLengths,
+            bestCandidate.track.trackLength,
+            cart.distanceAlongTrack
+        )
+        if (!attachSample) return
 
-        const projectedSpeed = vel.velocity.dot(tangent)
+        const projectedSpeed = vel.velocity.dot(attachSample.tangent)
         cart.speed = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, projectedSpeed))
 
-        vel.velocity.copy(tangent).multiplyScalar(cart.speed)
+        if (DEBUG_ATTACH_DIAGNOSTICS) {
+            console.log("[SCart attach winner]", {
+                trackId: bestCandidate.trackId,
+                resolvedT: cart.t,
+                projectedSpeed: cart.speed,
+            })
+        }
+
+        vel.velocity.copy(attachSample.tangent).multiplyScalar(cart.speed)
 
         const angle = this.tangentAngle(vel.velocity)
         if (angle != null) {
@@ -264,7 +490,12 @@ export class SCart extends System {
             const visualAngle = this.closestVisualAngle(angle, referenceAngle)
 
             cart.prevTrackAngle = visualAngle
-            cart.angularVelocity = 0
+            cart.angularVelocity = this.estimateTrackAngularVelocity(
+                bestCandidate.track,
+                cart.distanceAlongTrack,
+                cart.speed,
+                visualAngle
+            )
             if (rotation) {
                 this.setRotationAngle(rotation, visualAngle)
                 rotation.previousRotation.copy(rotation.rotation)
@@ -275,19 +506,93 @@ export class SCart extends System {
     }
 }
 
-function closestPointBetweenSegments(
+function isBetterTrackAttachCandidate(
+    candidate: TrackAttachCandidate,
+    current: TrackAttachCandidate | null
+): boolean {
+    if (!current) return true
+    if (candidate.distanceSq < current.distanceSq - ATTACH_EPSILON) return true
+    if (candidate.distanceSq > current.distanceSq + ATTACH_EPSILON) return false
+
+    if (candidate.endDistanceSq < current.endDistanceSq - ATTACH_EPSILON) return true
+    if (candidate.endDistanceSq > current.endDistanceSq + ATTACH_EPSILON) return false
+
+    if (candidate.trackId !== current.trackId) return candidate.trackId < current.trackId
+    if (candidate.segmentIndex !== current.segmentIndex) return candidate.segmentIndex < current.segmentIndex
+
+    return candidate.curveT < current.curveT
+}
+
+function closestPointsBetweenSegments(
     p1: Vector3,
-    _p2: Vector3,
-    a: Vector3,
-    b: Vector3
-): Vector3 | null {
+    p2: Vector3,
+    q1: Vector3,
+    q2: Vector3
+): { pointOnFirst: Vector3, pointOnSecond: Vector3, distanceSq: number, tFirst: number, tSecond: number } | null {
 
-    const ab = b.clone().sub(a)
-    const lenSq = ab.lengthSq()
-    if (lenSq === 0) return a.clone()
+    const d1 = p2.clone().sub(p1)
+    const d2 = q2.clone().sub(q1)
+    const r = p1.clone().sub(q1)
+    const a = d1.dot(d1)
+    const e = d2.dot(d2)
+    const f = d2.dot(r)
 
-    const ap = p1.clone().sub(a)
-    const t = Math.max(0, Math.min(1, ap.dot(ab) / lenSq))
+    let s = 0
+    let t = 0
 
-    return a.clone().add(ab.multiplyScalar(t))
+    if (a <= ATTACH_EPSILON && e <= ATTACH_EPSILON) {
+        return {
+            pointOnFirst: p1.clone(),
+            pointOnSecond: q1.clone(),
+            distanceSq: p1.distanceToSquared(q1),
+            tFirst: 0,
+            tSecond: 0,
+        }
+    }
+
+    if (a <= ATTACH_EPSILON) {
+        s = 0
+        t = clamp01(f / e)
+    } else {
+        const c = d1.dot(r)
+
+        if (e <= ATTACH_EPSILON) {
+            t = 0
+            s = clamp01(-c / a)
+        } else {
+            const b = d1.dot(d2)
+            const denom = a * e - b * b
+
+            if (Math.abs(denom) > ATTACH_EPSILON) {
+                s = clamp01((b * f - c * e) / denom)
+            }
+
+            const tNumerator = b * s + f
+
+            if (tNumerator <= 0) {
+                t = 0
+                s = clamp01(-c / a)
+            } else if (tNumerator >= e) {
+                t = 1
+                s = clamp01((b - c) / a)
+            } else {
+                t = tNumerator / e
+            }
+        }
+    }
+
+    const pointOnFirst = p1.clone().addScaledVector(d1, s)
+    const pointOnSecond = q1.clone().addScaledVector(d2, t)
+
+    return {
+        pointOnFirst,
+        pointOnSecond,
+        distanceSq: pointOnFirst.distanceToSquared(pointOnSecond),
+        tFirst: s,
+        tSecond: t,
+    }
+}
+
+function clamp01(value: number) {
+    return Math.max(0, Math.min(1, value))
 }

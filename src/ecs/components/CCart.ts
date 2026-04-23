@@ -4,6 +4,7 @@ export class CCart {
     trackId: number | null = null;
     lastTrackId: number | null = null;
     t: number = 0; //0-1 along the track
+    distanceAlongTrack: number = 0;
 
     speed: number = 0.2; //units per second, along the track
     defaultSpeed: number = this.speed;

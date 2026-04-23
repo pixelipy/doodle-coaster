@@ -1,4 +1,4 @@
-import { BoxGeometry, Mesh, MeshBasicMaterial, MeshNormalMaterial, Object3D } from "three";
+import { BoxGeometry, Mesh, MeshNormalMaterial, Object3D } from "three";
 import type { World } from "../../core/world";
 import { RThree } from "../../resources/RThree";
 import { CCart } from "../../components/CCart";

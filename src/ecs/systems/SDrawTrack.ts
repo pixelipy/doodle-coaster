@@ -1,4 +1,4 @@
-import { BufferGeometry, CatmullRomCurve3, Vector3 } from "three"
+import { BufferGeometry, Vector3 } from "three"
 import { System } from "../core/system"
 import { RInput } from "../resources/RInput"
 import { CTrack } from "../components/CTrack"
@@ -7,12 +7,15 @@ import { RTrackManager } from "../resources/RTrackManager"
 import { World } from "../core/world"
 import { FTrack } from "../factories/trackFactory"
 import { ESimulationState, RSimulationState } from "../resources/RSimulationState"
+import { buildTrackRail } from "../utils/trackRail"
 
 const MIN_DIST = 0.3
 const SNAP_DIST = 0.2
 const ERASE_RADIUS = 0.45
 const MIN_RAW_POINTS_TO_KEEP = 3
 const ALLOW_SELF_JOINS = false
+const PHYSICS_POINT_SPACING = 0.05
+const RAIL_SMOOTHING_PASSES = 2
 
 export class SDrawTrack extends System {
 
@@ -20,30 +23,17 @@ export class SDrawTrack extends System {
         const input = world.getResource(RInput)!
         const drawing = world.getResource(RTrackManager)!
         const raycast = world.getResource(RRaycast)!
-
         const simulationState = world.getResource(RSimulationState)!
+
         if (simulationState.state !== ESimulationState.DrawingTrack) return
 
-        // put on erase mode if E is pressed, otherwise draw mode
-        
         if (input.keysPressed.has("e")) {
-            if (simulationState.drawingMode == "erase") {
-                simulationState.drawingMode = "draw"
-            }
-            else {
-                simulationState.drawingMode = "erase"
-            }
-            
-        } 
+            simulationState.drawingMode = simulationState.drawingMode === "erase" ? "draw" : "erase"
+        }
 
-        const drawingMode = simulationState.drawingMode // draw || erase
-
-        if (drawingMode === "erase") {
-            // Erase continuously while holding the mouse button.
+        if (simulationState.drawingMode === "erase") {
             if (input.lmbDown) {
-                const mouse = raycast.hitPoint.clone()
-                mouse.z = 0
-
+                const mouse = getFlatRaycastPoint(raycast)
                 const hit = findClosestTrack(world, mouse, ERASE_RADIUS)
 
                 if (hit !== null) {
@@ -51,50 +41,18 @@ export class SDrawTrack extends System {
                 }
             }
 
-            return;
-        }
-
-
-
-        // Start drawing or extend an existing snapped endpoint.
-        if (input.lmbPressed) {
-            const mouse = raycast.hitPoint.clone()
-            mouse.z = 0
-
-            const snap = findClosestEndpoint(world, mouse, SNAP_DIST)
-
-            if (snap) {
-                drawing.currentTrackId = snap.trackId
-                drawing.extendFromStart = snap.endpoint === "start"
-            } else {
-                const entity = new FTrack().init(world)
-                const track = world.getComponent(entity, CTrack)!
-                track.rawPoints.push(mouse)
-                drawing.currentTrackId = entity
-                drawing.extendFromStart = false
-            }
-        }
-
-        // 🔹 Stop drawing and optionally snap into a second track endpoint.
-        if (input.lmbReleased && drawing.currentTrackId !== null) {
-            const mouse = raycast.hitPoint.clone()
-            mouse.z = 0
-
-            tryJoinTrackOnRelease(world, drawing.currentTrackId, drawing.extendFromStart, mouse)
-
-            const track = world.getComponent(drawing.currentTrackId, CTrack)
-
-            if (track && track.rawPoints.length < 2) {
-                FTrack.destroy(world, drawing.currentTrackId)
-                world.destroyEntity(drawing.currentTrackId)
-            }
-
-            drawing.currentTrackId = null
-            drawing.extendFromStart = false
             return
         }
 
-        // 🔹 Nothing to draw
+        if (input.lmbPressed) {
+            beginTrackStroke(world, drawing, getFlatRaycastPoint(raycast))
+        }
+
+        if (input.lmbReleased && drawing.currentTrackId !== null) {
+            finishTrackStroke(world, drawing, getFlatRaycastPoint(raycast))
+            return
+        }
+
         if (drawing.currentTrackId === null) return
 
         const track = world.getComponent(drawing.currentTrackId, CTrack)
@@ -102,34 +60,106 @@ export class SDrawTrack extends System {
 
         let dirty = false
 
-        // 🔹 Add points
         if (input.lmbDown) {
-            const p = raycast.hitPoint.clone()
-            p.z = 0
+            const point = getFlatRaycastPoint(raycast)
 
             const anchor = drawing.extendFromStart
                 ? track.rawPoints[0]
                 : track.rawPoints[track.rawPoints.length - 1]
 
-            if (!anchor || anchor.distanceTo(p) > MIN_DIST) {
+            if (!anchor) {
                 if (drawing.extendFromStart) {
-                    track.rawPoints.unshift(p)
+                    track.rawPoints.unshift(point)
                 } else {
-                    track.rawPoints.push(p)
+                    track.rawPoints.push(point)
                 }
 
+                dirty = true
+            } else if (appendInterpolatedRawPoints(track, drawing.extendFromStart, point, MIN_DIST)) {
                 dirty = true
             }
         }
 
-        // 🔹 Rebuild spline
         if (dirty) {
             rebuildTrackGeometry(track)
         }
     }
 }
 
-// Try a second endpoint snap on release so a stroke can merge into another track.
+function getFlatRaycastPoint(raycast: RRaycast) {
+    const point = raycast.hitPoint.clone()
+    point.z = 0
+    return point
+}
+
+function beginTrackStroke(world: World, drawing: RTrackManager, mouse: Vector3) {
+    const snap = findClosestEndpoint(world, mouse, SNAP_DIST)
+
+    if (snap) {
+        drawing.currentTrackId = snap.trackId
+        drawing.extendFromStart = snap.endpoint === "start"
+        return
+    }
+
+    const entity = new FTrack().init(world)
+    const track = world.getComponent(entity, CTrack)!
+
+    track.rawPoints.push(mouse)
+    drawing.currentTrackId = entity
+    drawing.extendFromStart = false
+}
+
+function finishTrackStroke(world: World, drawing: RTrackManager, mouse: Vector3) {
+    const currentTrackId = drawing.currentTrackId
+    if (currentTrackId === null) return
+
+    tryJoinTrackOnRelease(world, currentTrackId, drawing.extendFromStart, mouse)
+
+    const track = world.getComponent(currentTrackId, CTrack)
+    if (track && track.rawPoints.length < 2) {
+        FTrack.destroy(world, currentTrackId)
+        world.destroyEntity(currentTrackId)
+    }
+
+    drawing.currentTrackId = null
+    drawing.extendFromStart = false
+}
+
+function appendInterpolatedRawPoints(
+    track: CTrack,
+    extendFromStart: boolean,
+    targetPoint: Vector3,
+    spacing: number
+): boolean {
+    const anchor = extendFromStart
+        ? track.rawPoints[0]
+        : track.rawPoints[track.rawPoints.length - 1]
+
+    if (!anchor) return false
+
+    const delta = targetPoint.clone().sub(anchor)
+    const distance = delta.length()
+    if (distance <= spacing) return false
+
+    const direction = delta.normalize()
+    const steps = Math.floor(distance / spacing)
+    let inserted = false
+
+    for (let step = 1; step <= steps; step++) {
+        const point = anchor.clone().addScaledVector(direction, spacing * step)
+
+        if (extendFromStart) {
+            track.rawPoints.unshift(point)
+        } else {
+            track.rawPoints.push(point)
+        }
+
+        inserted = true
+    }
+
+    return inserted
+}
+
 function tryJoinTrackOnRelease(
     world: World,
     currentTrackId: number,
@@ -147,7 +177,6 @@ function tryJoinTrackOnRelease(
     mergeTracks(world, currentTrackId, extendFromStart, joinTarget.trackId, joinTarget.endpoint)
 }
 
-// Erase raw control points near the cursor, then shrink, split, or delete the track.
 function eraseTrackAtPoint(
     world: World,
     trackId: number,
@@ -160,18 +189,15 @@ function eraseTrackAtPoint(
     const runs = splitRawPointRuns(track.rawPoints, eraseCenter, eraseRadius)
     const survivingRuns = runs.filter(run => run.length >= MIN_RAW_POINTS_TO_KEEP)
 
-    // If no valid run survives, the eraser removed the whole track.
     if (survivingRuns.length === 0) {
         FTrack.destroy(world, trackId)
         world.destroyEntity(trackId)
         return
     }
 
-    // Reuse the original entity for the first surviving run.
     applyRawPoints(track, survivingRuns[0])
     rebuildTrackGeometry(track)
 
-    // Create additional track entities for any extra surviving runs.
     for (let i = 1; i < survivingRuns.length; i++) {
         const newTrackId = new FTrack().init(world)
         const newTrack = world.getComponent(newTrackId, CTrack)
@@ -182,7 +208,6 @@ function eraseTrackAtPoint(
     }
 }
 
-// Find the endpoint that can receive the release-time snap, including optional self-joins.
 function findJoinTargetOnRelease(
     world: World,
     p: Vector3,
@@ -238,7 +263,6 @@ function findJoinTargetOnRelease(
     }
 }
 
-// Merge a released stroke into another track and clean up the merged-away entity.
 function mergeTracks(
     world: World,
     primaryTrackId: number,
@@ -280,7 +304,6 @@ function mergeTracks(
     world.destroyEntity(secondaryTrackId)
 }
 
-// Close the active track onto its opposite endpoint when self-joins are enabled.
 function closeTrackLoop(
     world: World,
     trackId: number,
@@ -302,7 +325,6 @@ function closeTrackLoop(
     rebuildTrackGeometry(track)
 }
 
-// Split the track's raw points into contiguous survivors outside the eraser radius.
 function splitRawPointRuns(
     rawPoints: Vector3[],
     eraseCenter: Vector3,
@@ -331,16 +353,15 @@ function splitRawPointRuns(
     return runs
 }
 
-// Copy a raw-point run onto a track so the run can become the new source spline.
 function applyRawPoints(track: CTrack, rawPoints: Vector3[]) {
     track.rawPoints = rawPoints.map(point => point.clone())
 }
 
-// Rebuild all derived spline/render data from the track's raw points.
 function rebuildTrackGeometry(track: CTrack) {
     if (track.rawPoints.length < 2) {
-        track.curve = null
-        track.curveLength = 0
+        track.physicsPoints = []
+        track.cumulativeLengths = []
+        track.trackLength = 0
         track.sampled = []
 
         if (track.lineMesh) {
@@ -351,9 +372,12 @@ function rebuildTrackGeometry(track: CTrack) {
         return
     }
 
-    track.curve = new CatmullRomCurve3(track.rawPoints)
-    track.curveLength = track.curve.getLength()
-    track.sampled = track.curve.getSpacedPoints(Math.min(200, track.rawPoints.length * 10))
+    // Keep one rebuild path so the deterministic rail and rendered mesh stay in sync.
+    const rail = buildTrackRail(track.rawPoints, PHYSICS_POINT_SPACING, RAIL_SMOOTHING_PASSES)
+    track.physicsPoints = rail.physicsPoints
+    track.cumulativeLengths = rail.cumulativeLengths
+    track.trackLength = rail.trackLength
+    track.sampled = rail.physicsPoints.map(point => point.clone())
 
     if (track.lineMesh) {
         track.lineMesh.geometry.dispose()
@@ -362,7 +386,6 @@ function rebuildTrackGeometry(track: CTrack) {
 }
 
 
-// Helper: find closest track endpoint.
 function findClosestEndpoint(
     world: World,
     p: Vector3,

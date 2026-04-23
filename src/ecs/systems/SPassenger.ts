@@ -8,6 +8,7 @@ import type { World } from "../core/world";
 import { ESimulationState, RSimulationState } from "../resources/RSimulationState";
 import { CTrack } from "../components/CTrack";
 import { RTime } from "../resources/RTime";
+import { sampleTrackRailAtDistance } from "../utils/trackRail";
 
 const GRAVITY = 3;
 const REATTACH_DIST = 0.22;
@@ -21,9 +22,19 @@ const AIR_SPIN_SPEED_Z = -7;
 
 const SUPPORT_THRESHOLD = -7.0; // if the support force (centripetal - gravity) is below this, the passenger is at risk of falling out. This is a soft threshold that can be exceeded briefly without detaching, allowing for more dynamic movement without constant minor detachments.
 const AIRBORNE_SUPPORT_THRESHOLD = -2; // when off-track, a much lower threshold is used since the passenger isn't being held in by the track at all. This allows for more forgiving reattachment after a fall.
+const REATTACH_EPSILON = 1e-6;
+const DEBUG_REATTACH_DIAGNOSTICS = false;
+const REATTACH_DIST_SQ = REATTACH_DIST * REATTACH_DIST;
 
 const reattachSeatPosition = new Vector3();
-const tempVec = new Vector3();
+
+type PassengerReattachCandidate = {
+    cartId: number;
+    seatPosition: Vector3;
+    cartVelocity: Vector3;
+    cartRotation?: CRotation;
+    distanceSq: number;
+};
 
 export class SPassenger extends System {
 
@@ -75,6 +86,114 @@ export class SPassenger extends System {
         }
     }
 
+    private detachPassenger(passenger: CPassenger, vel: CVelocity, cartVelocity: Vector3) {
+        passenger.attached = false;
+        passenger.cartId = null;
+        passenger.airtimeCooldown = REATTACH_COOLDOWN;
+
+        vel.velocity.copy(cartVelocity);
+        vel.velocity.y += DETACH_BOOST;
+    }
+
+    private estimateSupportForce(
+        cart: CCart,
+        cartVel: CVelocity,
+        cartRot: CRotation | undefined,
+        track: CTrack | null
+    ) {
+        const tangent = new Vector3(
+            Math.cos(cartRot?.rotation.z ?? 0),
+            Math.sin(cartRot?.rotation.z ?? 0),
+            0
+        );
+        const normal = new Vector3(-tangent.y, tangent.x, 0);
+        const gravityNormal = new Vector3(0, -GRAVITY, 0).dot(normal);
+
+        if (!cart.attached || !track || track.physicsPoints.length < 2 || track.trackLength <= 0) {
+            return cartVel.velocity.dot(normal);
+        }
+
+        const distanceSample = 0.1;
+        const d1 = Math.max(0, cart.distanceAlongTrack - distanceSample);
+        const d2 = Math.min(track.trackLength, cart.distanceAlongTrack + distanceSample);
+        const sample1 = sampleTrackRailAtDistance(
+            track.physicsPoints,
+            track.cumulativeLengths,
+            track.trackLength,
+            d1
+        );
+        const sample2 = sampleTrackRailAtDistance(
+            track.physicsPoints,
+            track.cumulativeLengths,
+            track.trackLength,
+            d2
+        );
+
+        if (!sample1 || !sample2) {
+            return cartVel.velocity.dot(normal);
+        }
+
+        const tan1 = sample1.tangent.clone().normalize();
+        const tan2 = sample2.tangent.clone().normalize();
+        const tangentDelta = tan2.sub(tan1);
+        const ds = Math.max(d2 - d1, 0.0001);
+        const signedCurvature = tangentDelta.dot(normal) / ds;
+        const centripetal = cartVel.velocity.lengthSq() * signedCurvature;
+
+        return centripetal - gravityNormal;
+    }
+
+    private findBestReattachCandidate(
+        world: World,
+        passenger: CPassenger,
+        pos: CPosition
+    ) {
+        let bestCandidate: PassengerReattachCandidate | null = null;
+        const debugCandidates: PassengerReattachCandidate[] = [];
+
+        for (const [cartId, _cart, cartPos] of world.query2(CCart, CPosition)) {
+            const cartVel = world.getComponent(cartId, CVelocity)!;
+            const cartRot = world.getComponent(cartId, CRotation);
+            const seatPosition = getSeatPosition(cartPos.position, cartRot, passenger.offset).clone();
+            const distanceSq = seatPosition.distanceToSquared(pos.position);
+
+            if (distanceSq > REATTACH_DIST_SQ + REATTACH_EPSILON) continue;
+
+            const candidate: PassengerReattachCandidate = {
+                cartId,
+                seatPosition,
+                cartVelocity: cartVel.velocity.clone(),
+                cartRotation: cartRot,
+                distanceSq,
+            };
+
+            if (DEBUG_REATTACH_DIAGNOSTICS) {
+                debugCandidates.push(candidate);
+            }
+
+            if (isBetterPassengerReattachCandidate(candidate, bestCandidate)) {
+                bestCandidate = candidate;
+            }
+        }
+
+        if (bestCandidate && DEBUG_REATTACH_DIAGNOSTICS) {
+            console.log("[SPassenger reattach]", {
+                winnerCartId: bestCandidate.cartId,
+                winnerDistanceSq: bestCandidate.distanceSq,
+                candidateCount: debugCandidates.length,
+                candidates: debugCandidates
+                    .slice()
+                    .sort((a, b) => a.distanceSq - b.distanceSq || a.cartId - b.cartId)
+                    .map(candidate => ({
+                        cartId: candidate.cartId,
+                        distanceSq: candidate.distanceSq,
+                    })),
+            });
+        }
+
+        return bestCandidate;
+    }
+
     update(world: World, _dt: number): void {
 
         const sim = world.getResource(RSimulationState)!;
@@ -103,7 +222,6 @@ export class SPassenger extends System {
                 // ATTACHED
                 // -------------------------
                 if (passenger.attached && passenger.cartId !== null) {
-
                     const cart = world.getComponent(passenger.cartId, CCart);
                     const cartPos = world.getComponent(passenger.cartId, CPosition);
                     const cartVel = world.getComponent(passenger.cartId, CVelocity);
@@ -117,99 +235,29 @@ export class SPassenger extends System {
 
                     const seatPosition = getSeatPosition(cartPos.position, cartRot, passenger.offset);
 
-                    //const dist = seatPosition.distanceTo(pos.position);
-                    //const normalizedDist = dist / (passenger.offset.length() + 0.001);
-
-                    tempVec.copy(vel.velocity).sub(cartVel.velocity);
-                    //const relativeSpeed = tempVec.length();
-
-                    // -------------------------
-                    // REAL SUPPORT FORCE
-                    // -------------------------
-
                     const track = cart.trackId !== null
-                        ? world.getComponent(cart.trackId, CTrack)
+                        ? world.getComponent(cart.trackId, CTrack)!
                         : null;
 
-                    const tangent = new Vector3(
-                        Math.cos(cartRot?.rotation.z ?? 0),
-                        Math.sin(cartRot?.rotation.z ?? 0),
-                        0
-                    );
-
-                    const normal = new Vector3(-tangent.y, tangent.x, 0);
-
-                    const gravityVec = new Vector3(0, -GRAVITY, 0);
-                    const gravityNormal = gravityVec.dot(normal);
-
-                    let supportForce = 0;
-
-                    if (cart.attached && track && track.curve) {
-                        // ON-TRACK SUPPORT: rail curvature pushes the cart into the seat.
-                        const t = cart.t;
-                        const dtSample = 0.02;
-
-                        const t1 = Math.max(0, t - dtSample);
-                        const t2 = Math.min(1, t + dtSample);
-
-                        const tan1 = track.curve.getTangentAt(t1).normalize();
-                        const tan2 = track.curve.getTangentAt(t2).normalize();
-                        const tangentDelta = tan2.clone().sub(tan1);
-
-                        const ds = Math.max((t2 - t1) * track.curveLength, 0.0001);
-                        const signedCurvature = tangentDelta.dot(normal) / ds;
-
-                        const speedSq = cartVel.velocity.lengthSq();
-                        const centripetal = speedSq * signedCurvature;
-
-                        supportForce = centripetal - gravityNormal;
-                    } else {
-                        // OFF-TRACK SUPPORT: use cart speed along the seat normal as a gameplay proxy.
-                        supportForce = cartVel.velocity.dot(normal);
-                    }
-
-                    //console.log("support force:", supportForce.toFixed(2))
-
+                    // Support is estimated from rail curvature when on-track, and from cart motion when airborne.
+                    const supportForce = this.estimateSupportForce(cart, cartVel, cartRot, track);
                     const lacksSupport = supportForce <= (cart.attached ? SUPPORT_THRESHOLD : AIRBORNE_SUPPORT_THRESHOLD);
-
-                    // -------------------------
-                    // FOLLOW SEAT
-                    // -------------------------
-
 
                     if (rotation && cartRot) {
                         rotation.rotation.copy(cartRot.rotation);
                         rotation.dirty = true;
                     }
 
-                    // -------------------------
-                    // DETACH
-                    // -------------------------
-
-
-                    //console.log("lacks support?:", lacksSupport, "relative speed:", relativeSpeed.toFixed(2), "normalized dist:", normalizedDist.toFixed(2))
-
-
-
                     const shouldDetach =
                         passenger.airtimeCooldown <= 0 &&
-                        (
-                            //relativeSpeed > MAX_RELATIVE_SPEED ||
-                            //normalizedDist > MAX_RELATIVE_DISTANCE ||
-                            lacksSupport
-                        );
+                        lacksSupport;
 
                     if (shouldDetach) {
-                        passenger.attached = false;
-                        passenger.cartId = null;
-                        passenger.airtimeCooldown = REATTACH_COOLDOWN;
-
-                        vel.velocity.copy(cartVel.velocity);
-                        vel.velocity.y += DETACH_BOOST;
-
+                        this.detachPassenger(passenger, vel, cartVel.velocity);
                         continue;
                     }
 
+                    // Attached passengers snap to the current seat transform each step.
                     pos.position.copy(seatPosition);
                     pos.dirty = true;
 
@@ -233,38 +281,24 @@ export class SPassenger extends System {
                 // -------------------------
                 // REATTACH
                 // -------------------------
-
-
                 if (passenger.airtimeCooldown > 0) continue;
-                for (const [cartId, _cart, cartPos] of world.query2(CCart, CPosition)) {
+                const bestCandidate = this.findBestReattachCandidate(world, passenger, pos);
 
-                    //if (!cart.attached) continue;
+                if (!bestCandidate) continue;
 
-                    const cartVel = world.getComponent(cartId, CVelocity)!;
-                    const cartRot = world.getComponent(cartId, CRotation);
-                    const seatPosition = getSeatPosition(cartPos.position, cartRot, passenger.offset);
+                passenger.attached = true;
+                passenger.cartId = bestCandidate.cartId;
 
-                    const d = seatPosition.distanceTo(pos.position);
+                pos.position.copy(bestCandidate.seatPosition);
+                pos.dirty = true;
 
-                    if (d < REATTACH_DIST) {
+                passenger.airtimeCooldown = AIRTIME_COOLDOWN;
 
-                        passenger.attached = true;
-                        passenger.cartId = cartId;
+                vel.velocity.copy(bestCandidate.cartVelocity);
 
-                        pos.position.copy(seatPosition);
-                        pos.dirty = true;
-
-                        passenger.airtimeCooldown = AIRTIME_COOLDOWN;
-
-                        vel.velocity.copy(cartVel.velocity);
-
-                        if (rotation && cartRot) {
-                            rotation.rotation.copy(cartRot.rotation);
-                            rotation.dirty = true;
-                        }
-
-                        break;
-                    }
+                if (rotation && bestCandidate.cartRotation) {
+                    rotation.rotation.copy(bestCandidate.cartRotation.rotation);
+                    rotation.dirty = true;
                 }
             }
         }
@@ -296,4 +330,15 @@ function getSeatPosition(
         cartPosition.y + y,
         cartPosition.z + seatOffset.z
     )
+}
+
+function isBetterPassengerReattachCandidate(
+    candidate: PassengerReattachCandidate,
+    current: PassengerReattachCandidate | null
+): boolean {
+    if (!current) return true;
+    if (candidate.distanceSq < current.distanceSq - REATTACH_EPSILON) return true;
+    if (candidate.distanceSq > current.distanceSq + REATTACH_EPSILON) return false;
+
+    return candidate.cartId < current.cartId;
 }
