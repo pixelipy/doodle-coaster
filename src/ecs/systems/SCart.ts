@@ -8,11 +8,13 @@ import { ESimulationState, RSimulationState } from "../resources/RSimulationStat
 import { RTime } from "../resources/RTime"
 import { Vector3 } from "three"
 import { sampleTrackRailAtDistance, sampleTrackRailAtSegmentDistance } from "../utils/trackRail"
+import { RSettings } from "../resources/RSettings"
 
-const GRAVITY = 3
-const ATTACH_DIST = 0.2
-const REATTACH_COOLDOWN = 0.3
-const MAX_SPEED = 8
+let GRAVITY = 3
+let ATTACH_DIST = 0.2
+let REATTACH_COOLDOWN = 0.3
+let MAX_SPEED = 7
+
 const ROTATION_EPSILON = 0.0001
 const ATTACH_EPSILON = 1e-6
 const DEBUG_ATTACH_DIAGNOSTICS = false
@@ -30,6 +32,15 @@ type TrackAttachCandidate = {
 }
 
 export class SCart extends System {
+
+    init(world: World): void {
+        let settings = world.getResource(RSettings)!
+
+        GRAVITY = settings.physics.GRAVITY
+        ATTACH_DIST = settings.cart.ATTACH_DIST
+        REATTACH_COOLDOWN = settings.cart.REATTACH_COOLDOWN
+        MAX_SPEED = settings.cart.MAX_SPEED
+    }
 
     private normalizeAtAngle(angle: number) {
         while (angle > Math.PI) angle -= 2 * Math.PI

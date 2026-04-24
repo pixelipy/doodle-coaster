@@ -10,68 +10,42 @@ export type TrackRailSample = {
     distanceAlongTrack: number
 }
 
-// Build a deterministic rail by locally smoothing the raw stroke, then resampling it at fixed arc-length spacing.
+// Build a deterministic rail by smoothing the editable stroke locally.
+// Physics stays on that local path so distant edits do not rephase the whole track.
 export function buildTrackRail(rawPoints: Vector3[], spacing: number, smoothingPasses: number = 0) {
     if (rawPoints.length === 0) {
         return {
             physicsPoints: [] as Vector3[],
             cumulativeLengths: [] as number[],
             trackLength: 0,
+            sampledPoints: [] as Vector3[],
         }
     }
 
     if (rawPoints.length === 1) {
+        const singlePoint = rawPoints[0].clone()
         return {
-            physicsPoints: [rawPoints[0].clone()],
+            physicsPoints: [singlePoint.clone()],
             cumulativeLengths: [0],
             trackLength: 0,
+            sampledPoints: [singlePoint],
         }
     }
 
-    // Keep the editable raw points as the source of truth, but derive a smoother local polyline for movement.
     const smoothedPoints = smoothTrackPoints(rawPoints, smoothingPasses)
-
-    const physicsPoints: Vector3[] = [smoothedPoints[0].clone()]
-    let distanceFromLastPoint = 0
-
-    for (let i = 0; i < smoothedPoints.length - 1; i++) {
-        const start = smoothedPoints[i]
-        const end = smoothedPoints[i + 1]
-        if (!start || !end) continue
-
-        const segment = end.clone().sub(start)
-        const segmentLength = segment.length()
-        if (segmentLength <= TRACK_EPSILON) continue
-
-        const direction = segment.normalize()
-        let traversedOnSegment = 0
-        let remainingOnSegment = segmentLength
-
-        while (distanceFromLastPoint + remainingOnSegment >= spacing) {
-            const distanceToNextPoint = spacing - distanceFromLastPoint
-            traversedOnSegment += distanceToNextPoint
-
-            const nextPoint = start.clone().addScaledVector(direction, traversedOnSegment)
-            pushUniquePoint(physicsPoints, nextPoint)
-
-            distanceFromLastPoint = 0
-            remainingOnSegment = segmentLength - traversedOnSegment
-        }
-
-        distanceFromLastPoint += remainingOnSegment
-    }
-
-    pushUniquePoint(physicsPoints, smoothedPoints[smoothedPoints.length - 1].clone())
+    const physicsPoints = cloneUniquePoints(smoothedPoints)
 
     const cumulativeLengths = buildCumulativeLengths(physicsPoints)
     const trackLength = cumulativeLengths.length > 0
         ? cumulativeLengths[cumulativeLengths.length - 1]
         : 0
+    const sampledPoints = resampleTrackPoints(physicsPoints, spacing)
 
     return {
         physicsPoints,
         cumulativeLengths,
         trackLength,
+        sampledPoints,
     }
 }
 
@@ -189,6 +163,55 @@ function buildCumulativeLengths(points: Vector3[]) {
     }
 
     return cumulativeLengths
+}
+
+function cloneUniquePoints(points: Vector3[]) {
+    const uniquePoints: Vector3[] = []
+
+    for (const point of points) {
+        pushUniquePoint(uniquePoints, point.clone())
+    }
+
+    return uniquePoints
+}
+
+function resampleTrackPoints(points: Vector3[], spacing: number) {
+    if (points.length <= 1 || spacing <= TRACK_EPSILON) {
+        return points.map(point => point.clone())
+    }
+
+    const resampled: Vector3[] = [points[0].clone()]
+    let distanceFromLastPoint = 0
+
+    for (let i = 0; i < points.length - 1; i++) {
+        const start = points[i]
+        const end = points[i + 1]
+        if (!start || !end) continue
+
+        const segment = end.clone().sub(start)
+        const segmentLength = segment.length()
+        if (segmentLength <= TRACK_EPSILON) continue
+
+        const direction = segment.normalize()
+        let traversedOnSegment = 0
+        let remainingOnSegment = segmentLength
+
+        while (distanceFromLastPoint + remainingOnSegment >= spacing) {
+            const distanceToNextPoint = spacing - distanceFromLastPoint
+            traversedOnSegment += distanceToNextPoint
+
+            const nextPoint = start.clone().addScaledVector(direction, traversedOnSegment)
+            pushUniquePoint(resampled, nextPoint)
+
+            distanceFromLastPoint = 0
+            remainingOnSegment = segmentLength - traversedOnSegment
+        }
+
+        distanceFromLastPoint += remainingOnSegment
+    }
+
+    pushUniquePoint(resampled, points[points.length - 1].clone())
+    return resampled
 }
 
 function pushUniquePoint(points: Vector3[], point: Vector3) {

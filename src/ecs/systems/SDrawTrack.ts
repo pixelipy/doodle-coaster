@@ -8,16 +8,27 @@ import { World } from "../core/world"
 import { FTrack } from "../factories/trackFactory"
 import { ESimulationState, RSimulationState } from "../resources/RSimulationState"
 import { buildTrackRail } from "../utils/trackRail"
+import { RSettings } from "../resources/RSettings"
 
-const MIN_DIST = 0.3
-const SNAP_DIST = 0.2
-const ERASE_RADIUS = 0.45
-const MIN_RAW_POINTS_TO_KEEP = 3
-const ALLOW_SELF_JOINS = false
-const PHYSICS_POINT_SPACING = 0.05
-const RAIL_SMOOTHING_PASSES = 2
+let MIN_DIST = 0.3
+let SNAP_DIST = 0.2
+let ERASE_RADIUS = 0.45
+let ALLOW_SELF_JOINS = false
+let PHYSICS_POINT_SPACING = 0.05
+let RAIL_SMOOTHING_PASSES = 2
 
 export class SDrawTrack extends System {
+
+    init(world: World): void {
+        const settings = world.getResource(RSettings)!.track
+
+        MIN_DIST = settings.SAMPLE_DISTANCE
+        SNAP_DIST = settings.SNAP_TO_POINT_DISTANCE
+        ERASE_RADIUS = settings.ERASER_RADIUS
+        ALLOW_SELF_JOINS = settings.ALLOW_SELF_JOINS
+        PHYSICS_POINT_SPACING = settings.PHYSICS_POINT_SPACING
+        RAIL_SMOOTHING_PASSES = settings.RAIL_SMOOTHING_PASSES
+    }
 
     update(world: World, _deltaTime: number): void {
         const input = world.getResource(RInput)!
@@ -187,7 +198,7 @@ function eraseTrackAtPoint(
     if (!track || track.rawPoints.length === 0) return
 
     const runs = splitRawPointRuns(track.rawPoints, eraseCenter, eraseRadius)
-    const survivingRuns = runs.filter(run => run.length >= MIN_RAW_POINTS_TO_KEEP)
+    const survivingRuns = runs.filter(run => run.length >= 3)
 
     if (survivingRuns.length === 0) {
         FTrack.destroy(world, trackId)
@@ -372,12 +383,12 @@ function rebuildTrackGeometry(track: CTrack) {
         return
     }
 
-    // Keep one rebuild path so the deterministic rail and rendered mesh stay in sync.
+    // Physics follows the local smoothed rail, while the rendered line can stay uniformly sampled.
     const rail = buildTrackRail(track.rawPoints, PHYSICS_POINT_SPACING, RAIL_SMOOTHING_PASSES)
     track.physicsPoints = rail.physicsPoints
     track.cumulativeLengths = rail.cumulativeLengths
     track.trackLength = rail.trackLength
-    track.sampled = rail.physicsPoints.map(point => point.clone())
+    track.sampled = rail.sampledPoints.map(point => point.clone())
 
     if (track.lineMesh) {
         track.lineMesh.geometry.dispose()

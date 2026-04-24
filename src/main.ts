@@ -34,6 +34,7 @@ import { SCameraController } from './ecs/systems/SCameraController';
 import { FCamera } from './ecs/factories/cameraFactory';
 import { FCart4Passengers } from './ecs/factories/cart/cart4passengers';
 import { RRng } from './ecs/resources/RRng';
+import { RSettings } from './ecs/resources/RSettings';
 
 const world = new World();
 const three = new RThree();
@@ -51,6 +52,7 @@ await assetManager.loadAll({
 });
 
 //Initilize Resources
+world.addResource(new RSettings());
 world.addResource(three);
 world.addResource(assetManager);
 world.addResource(new RRng());

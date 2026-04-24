@@ -14,6 +14,10 @@ export class CPassenger extends Component {
     airtimeTimer: number = 0
     weight: number = 1; // relative passenger weight. Affects how fast it falls.
 
+    previousSeatDistance: number = Infinity // used for reattach logic
+    needsSeparation: boolean = false // after detaching, the passenger needs to be separated from the cart before it can reattach
+    separationCartId: number | null = null // reattach to this cart stays blocked until the passenger leaves its catch radius
+    
     constructor(cartId: number | null = null) {
         super()
 

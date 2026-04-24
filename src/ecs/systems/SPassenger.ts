@@ -9,19 +9,17 @@ import { ESimulationState, RSimulationState } from "../resources/RSimulationStat
 import { CTrack } from "../components/CTrack";
 import { RTime } from "../resources/RTime";
 import { sampleTrackRailAtDistance } from "../utils/trackRail";
+import { RSettings } from "../resources/RSettings";
 
-const GRAVITY = 3;
-const REATTACH_DIST = 0.22;
-const AIRTIME_COOLDOWN = 0.5;
-const REATTACH_COOLDOWN = 0.2;
+let GRAVITY = 3;
+let REATTACH_DIST = 0.25;
+let MIN_SEPARATION_BEFORE_REATTACHING = 0.4; // After detaching, the passenger must get at least this far from that same cart's seat before it can be caught again.
+let DETACH_BOOST = 0.25;
+let AIR_SPIN_SPEED_X = 0;
+let AIR_SPIN_SPEED_Z = -7;
+let SUPPORT_THRESHOLD = -10.0; // if the support force (centripetal - gravity) is below this, the passenger is at risk of falling out. This is a soft threshold that can be exceeded briefly without detaching, allowing for more dynamic movement without constant minor detachments.
+let AIRBORNE_SUPPORT_THRESHOLD = -3; // when off-track, a much lower threshold is used since the passenger isn't being held in by the track at all. This allows for more forgiving reattachment after a fall.
 
-const DETACH_BOOST = 0;
-
-const AIR_SPIN_SPEED_X = 0;
-const AIR_SPIN_SPEED_Z = -7;
-
-const SUPPORT_THRESHOLD = -7.0; // if the support force (centripetal - gravity) is below this, the passenger is at risk of falling out. This is a soft threshold that can be exceeded briefly without detaching, allowing for more dynamic movement without constant minor detachments.
-const AIRBORNE_SUPPORT_THRESHOLD = -2; // when off-track, a much lower threshold is used since the passenger isn't being held in by the track at all. This allows for more forgiving reattachment after a fall.
 const REATTACH_EPSILON = 1e-6;
 const DEBUG_REATTACH_DIAGNOSTICS = false;
 const REATTACH_DIST_SQ = REATTACH_DIST * REATTACH_DIST;
@@ -31,12 +29,26 @@ const reattachSeatPosition = new Vector3();
 type PassengerReattachCandidate = {
     cartId: number;
     seatPosition: Vector3;
-    cartVelocity: Vector3;
+    previousSeatPosition: Vector3;
     cartRotation?: CRotation;
     distanceSq: number;
+    endDistanceSq: number;
 };
 
 export class SPassenger extends System {
+
+    init(world: World): void {
+        let settings = world.getResource(RSettings)!
+
+        GRAVITY = settings.physics.GRAVITY
+        REATTACH_DIST = settings.passenger.REATTACH_DIST
+        MIN_SEPARATION_BEFORE_REATTACHING = settings.passenger.MIN_SEPARATION_BEFORE_REATTACHING
+        DETACH_BOOST = settings.passenger.DETACH_BOOST
+        AIR_SPIN_SPEED_X = settings.passenger.AIR_SPIN_SPEED_X
+        AIR_SPIN_SPEED_Z = settings.passenger.AIR_SPIN_SPEED_Z
+        SUPPORT_THRESHOLD = settings.passenger.SUPPORT_THRESHOLD
+        AIRBORNE_SUPPORT_THRESHOLD = settings.passenger.AIRBORNE_SUPPORT_THRESHOLD
+    }
 
     private beginInterpolatedStep(pos: CPosition, rotation?: CRotation) {
         pos.previousPosition.copy(pos.position)
@@ -60,17 +72,22 @@ export class SPassenger extends System {
             pos.previousPosition.copy(pos.position)
             passenger.attached = true
             passenger.cartId = passenger.homeCartId
+            passenger.previousSeatDistance = 0
+            passenger.needsSeparation = false
+            passenger.separationCartId = null
         } else {
             pos.position.copy(passenger.spawnPosition)
             pos.previousPosition.copy(passenger.spawnPosition)
             passenger.attached = false
             passenger.cartId = null
+            passenger.previousSeatDistance = Infinity
+            passenger.needsSeparation = false
+            passenger.separationCartId = null
         }
 
         pos.dirty = true
         vel.velocity.set(0, 0, 0)
 
-        passenger.airtimeCooldown = 0
         passenger.airtimeTimer = 0
 
         if (rotation) {
@@ -86,10 +103,12 @@ export class SPassenger extends System {
         }
     }
 
-    private detachPassenger(passenger: CPassenger, vel: CVelocity, cartVelocity: Vector3) {
+    private detachPassenger(passenger: CPassenger, cartId: number, vel: CVelocity, cartVelocity: Vector3) {
         passenger.attached = false;
         passenger.cartId = null;
-        passenger.airtimeCooldown = REATTACH_COOLDOWN;
+        passenger.previousSeatDistance = 0;
+        passenger.needsSeparation = true;
+        passenger.separationCartId = cartId;
 
         vel.velocity.copy(cartVelocity);
         vel.velocity.y += DETACH_BOOST;
@@ -152,19 +171,28 @@ export class SPassenger extends System {
         const debugCandidates: PassengerReattachCandidate[] = [];
 
         for (const [cartId, _cart, cartPos] of world.query2(CCart, CPosition)) {
-            const cartVel = world.getComponent(cartId, CVelocity)!;
             const cartRot = world.getComponent(cartId, CRotation);
             const seatPosition = getSeatPosition(cartPos.position, cartRot, passenger.offset).clone();
-            const distanceSq = seatPosition.distanceToSquared(pos.position);
-
-            if (distanceSq > REATTACH_DIST_SQ + REATTACH_EPSILON) continue;
+            const previousSeatPosition = getSeatPositionAt(
+                cartPos.previousPosition,
+                cartRot?.previousRotation.z ?? 0,
+                passenger.offset
+            );
+            const closest = closestPointsBetweenSegments(
+                pos.previousPosition,
+                pos.position,
+                previousSeatPosition,
+                seatPosition
+            );
+            if (!closest || closest.distanceSq > REATTACH_DIST_SQ + REATTACH_EPSILON) continue;
 
             const candidate: PassengerReattachCandidate = {
                 cartId,
                 seatPosition,
-                cartVelocity: cartVel.velocity.clone(),
+                previousSeatPosition,
                 cartRotation: cartRot,
-                distanceSq,
+                distanceSq: closest.distanceSq,
+                endDistanceSq: closest.pointOnFirst.distanceToSquared(pos.position),
             };
 
             if (DEBUG_REATTACH_DIAGNOSTICS) {
@@ -194,6 +222,35 @@ export class SPassenger extends System {
         return bestCandidate;
     }
 
+    private hasClearedSeparationDistance(world: World, passenger: CPassenger, pos: CPosition) {
+        if (!passenger.needsSeparation) return true;
+
+        const separationCartId = passenger.separationCartId;
+        if (separationCartId === null) {
+            passenger.needsSeparation = false;
+            return true;
+        }
+
+        const cartPos = world.getComponent(separationCartId, CPosition);
+        if (!cartPos) {
+            passenger.needsSeparation = false;
+            passenger.separationCartId = null;
+            return true;
+        }
+
+        const cartRot = world.getComponent(separationCartId, CRotation);
+        const seatPosition = getSeatPosition(cartPos.position, cartRot, passenger.offset);
+        const distanceSq = seatPosition.distanceToSquared(pos.position);
+        const requiredDistanceSq = MIN_SEPARATION_BEFORE_REATTACHING * MIN_SEPARATION_BEFORE_REATTACHING;
+        if (distanceSq >= requiredDistanceSq - REATTACH_EPSILON) {
+            passenger.needsSeparation = false;
+            passenger.separationCartId = null;
+            return true;
+        }
+
+        return false;
+    }
+
     update(world: World, _dt: number): void {
 
         const sim = world.getResource(RSimulationState)!;
@@ -216,7 +273,6 @@ export class SPassenger extends System {
 
                 const rotation = world.getComponent(_e, CRotation);
                 this.beginInterpolatedStep(pos, rotation)
-                passenger.airtimeCooldown = Math.max(0, passenger.airtimeCooldown - dt);
 
                 // -------------------------
                 // ATTACHED
@@ -230,6 +286,7 @@ export class SPassenger extends System {
                     if (!cart || !cartPos || !cartVel) {
                         passenger.attached = false;
                         passenger.cartId = null;
+                        passenger.previousSeatDistance = Infinity;
                         continue;
                     }
 
@@ -248,12 +305,10 @@ export class SPassenger extends System {
                         rotation.dirty = true;
                     }
 
-                    const shouldDetach =
-                        passenger.airtimeCooldown <= 0 &&
-                        lacksSupport;
+                    const shouldDetach = lacksSupport;
 
                     if (shouldDetach) {
-                        this.detachPassenger(passenger, vel, cartVel.velocity);
+                        this.detachPassenger(passenger, passenger.cartId, vel, cartVel.velocity);
                         continue;
                     }
 
@@ -281,20 +336,31 @@ export class SPassenger extends System {
                 // -------------------------
                 // REATTACH
                 // -------------------------
-                if (passenger.airtimeCooldown > 0) continue;
-                const bestCandidate = this.findBestReattachCandidate(world, passenger, pos);
+                if (!this.hasClearedSeparationDistance(world, passenger, pos)) {
+                    continue;
+                }
 
-                if (!bestCandidate) continue;
+                const bestCandidate = this.findBestReattachCandidate(world, passenger, pos);
+                if (!bestCandidate) {
+                    passenger.previousSeatDistance = Infinity;
+                    continue;
+                }
+
+                const seatVelocity = bestCandidate.seatPosition
+                    .clone()
+                    .sub(bestCandidate.previousSeatPosition)
+                    .divideScalar(dt);
 
                 passenger.attached = true;
                 passenger.cartId = bestCandidate.cartId;
+                passenger.previousSeatDistance = 0;
+                passenger.needsSeparation = false;
+                passenger.separationCartId = null;
 
                 pos.position.copy(bestCandidate.seatPosition);
                 pos.dirty = true;
 
-                passenger.airtimeCooldown = AIRTIME_COOLDOWN;
-
-                vel.velocity.copy(bestCandidate.cartVelocity);
+                vel.velocity.copy(seatVelocity);
 
                 if (rotation && bestCandidate.cartRotation) {
                     rotation.rotation.copy(bestCandidate.cartRotation.rotation);
@@ -310,8 +376,20 @@ function getSeatPosition(
     cartRotation: CRotation | undefined,
     seatOffset: Vector3
 ): Vector3 {
+    return getSeatPositionAt(
+        cartPosition,
+        cartRotation ? cartRotation.rotation.z : 0,
+        seatOffset,
+        reattachSeatPosition
+    );
+}
 
-    const angle = cartRotation ? cartRotation.rotation.z : 0
+function getSeatPositionAt(
+    cartPosition: Vector3,
+    angle: number,
+    seatOffset: Vector3,
+    target: Vector3 = new Vector3()
+): Vector3 {
 
     const cos = Math.cos(angle)
     const sin = Math.sin(angle)
@@ -325,7 +403,7 @@ function getSeatPosition(
     const x = seatOffset.x * rightX + seatOffset.y * upX
     const y = seatOffset.x * rightY + seatOffset.y * upY
 
-    return reattachSeatPosition.set(
+    return target.set(
         cartPosition.x + x,
         cartPosition.y + y,
         cartPosition.z + seatOffset.z
@@ -340,5 +418,81 @@ function isBetterPassengerReattachCandidate(
     if (candidate.distanceSq < current.distanceSq - REATTACH_EPSILON) return true;
     if (candidate.distanceSq > current.distanceSq + REATTACH_EPSILON) return false;
 
+    if (candidate.endDistanceSq < current.endDistanceSq - REATTACH_EPSILON) return true;
+    if (candidate.endDistanceSq > current.endDistanceSq + REATTACH_EPSILON) return false;
+
     return candidate.cartId < current.cartId;
+}
+
+function closestPointsBetweenSegments(
+    p1: Vector3,
+    p2: Vector3,
+    q1: Vector3,
+    q2: Vector3
+): { pointOnFirst: Vector3, pointOnSecond: Vector3, distanceSq: number, tFirst: number, tSecond: number } | null {
+    const d1 = p2.clone().sub(p1)
+    const d2 = q2.clone().sub(q1)
+    const r = p1.clone().sub(q1)
+    const a = d1.dot(d1)
+    const e = d2.dot(d2)
+    const f = d2.dot(r)
+
+    let s = 0
+    let t = 0
+
+    if (a <= REATTACH_EPSILON && e <= REATTACH_EPSILON) {
+        return {
+            pointOnFirst: p1.clone(),
+            pointOnSecond: q1.clone(),
+            distanceSq: p1.distanceToSquared(q1),
+            tFirst: 0,
+            tSecond: 0,
+        }
+    }
+
+    if (a <= REATTACH_EPSILON) {
+        s = 0
+        t = clamp01(f / e)
+    } else {
+        const c = d1.dot(r)
+
+        if (e <= REATTACH_EPSILON) {
+            t = 0
+            s = clamp01(-c / a)
+        } else {
+            const b = d1.dot(d2)
+            const denom = a * e - b * b
+
+            if (Math.abs(denom) > REATTACH_EPSILON) {
+                s = clamp01((b * f - c * e) / denom)
+            }
+
+            const tNumerator = b * s + f
+
+            if (tNumerator <= 0) {
+                t = 0
+                s = clamp01(-c / a)
+            } else if (tNumerator >= e) {
+                t = 1
+                s = clamp01((b - c) / a)
+            } else {
+                t = tNumerator / e
+            }
+        }
+    }
+
+    const pointOnFirst = p1.clone().addScaledVector(d1, s)
+    const pointOnSecond = q1.clone().addScaledVector(d2, t)
+
+    return {
+        pointOnFirst,
+        pointOnSecond,
+        distanceSq: pointOnFirst.distanceToSquared(pointOnSecond),
+        tFirst: s,
+        tSecond: t,
+    }
+}
+
+function clamp01(value: number) {
+    return Math.max(0, Math.min(1, value))
 }
