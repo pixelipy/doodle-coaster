@@ -19,5 +19,9 @@ export class SInputReset extends System {
         input.mmbReleased = false;
         input.rmbPressed = false;
         input.rmbReleased = false;
+        input.zoomDelta = 0;
+        input.panDelta.x = 0;
+        input.panDelta.y = 0;
+        input.mouseDelta.set(0, 0);
     }
 }

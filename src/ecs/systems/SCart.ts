@@ -1,13 +1,16 @@
 import { System } from "../core/system"
 import { World } from "../core/world"
 import { CCart } from "../components/CCart"
+import { CStation } from "../components/CStation"
 import { CTrack } from "../components/CTrack"
 import { CPosition, CRotation } from "../components/CTransform"
 import { CVelocity } from "../components/CVelocity"
 import { ESimulationState, RSimulationState } from "../resources/RSimulationState"
+import { RLevel } from "../resources/RLevel"
 import { RTime } from "../resources/RTime"
 import { Vector3 } from "three"
 import { sampleTrackRailAtDistance, sampleTrackRailAtSegmentDistance } from "../utils/trackRail"
+import { findConnectedTrackEndpoint } from "../utils/trackEndpoints"
 import { RSettings } from "../resources/RSettings"
 
 let GRAVITY = 3
@@ -20,6 +23,8 @@ const ATTACH_EPSILON = 1e-6
 const DEBUG_ATTACH_DIAGNOSTICS = false
 const ANGULAR_VELOCITY_SAMPLE_DISTANCE = 0.3
 const ANGULAR_VELOCITY_EPSILON = 1e-4
+const TRACK_CONNECTION_DIST = 0.05
+const GOAL_CAPTURE_DISTANCE = 0.08
 
 type TrackAttachCandidate = {
     trackId: number
@@ -182,6 +187,8 @@ export class SCart extends System {
         cart.angularVelocity = 0
         cart.prevTrackAngle = null
         cart.reattachCooldown = 0
+        cart.lastBoostStationId = null
+        cart.goalReached = false
     }
 
     private updateFreeCart(
@@ -231,12 +238,29 @@ export class SCart extends System {
 
         const tangent = currentSample.tangent
 
+        if (track.trackRole !== "stationStub") {
+            cart.lastBoostStationId = null
+        }
+
         cart.speed += -GRAVITY * tangent.y * dt
         cart.speed = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, cart.speed))
+        this.applyStationBoostIfNeeded(world, cart, track)
 
         const nextDistance = cart.distanceAlongTrack + cart.speed * dt
         if (nextDistance <= 0 || nextDistance >= length) {
-            this.detachAtTrackEnd(track, cart, vel, rotation, tangent, dt, nextDistance)
+            const transferred = this.tryTransferAtTrackEnd(
+                world,
+                track,
+                cart,
+                pos,
+                vel,
+                rotation,
+                dt,
+                nextDistance
+            )
+            if (!transferred) {
+                this.detachAtTrackEnd(track, cart, vel, rotation, tangent, dt, nextDistance)
+            }
             return
         }
 
@@ -249,20 +273,43 @@ export class SCart extends System {
         )
         if (!nextSample) return
 
-        const railVelocity = nextSample.tangent.clone().multiplyScalar(cart.speed)
+        const currentReferenceAngle = rotation ? rotation.rotation.z : cart.prevTrackAngle ?? 0
+        const currentVisualAngle = this.resolveVisualAngle(tangent, currentReferenceAngle)
+        const updated = this.applyTrackSample(world, track, cart, pos, vel, rotation, dt, nextSample, currentVisualAngle)
+        if (!updated) {
+            return
+        }
 
-        cart.distanceAlongTrack = clampedDistance
-        cart.t = clampedDistance / length
-        pos.position.copy(nextSample.point)
+        if (this.checkGoalStationArrival(world, cart, track, pos, vel, rotation)) {
+            return
+        }
+    }
+
+    private applyTrackSample(
+        world: World,
+        track: CTrack,
+        cart: CCart,
+        pos: CPosition,
+        vel: CVelocity,
+        rotation: CRotation | undefined,
+        dt: number,
+        sample: NonNullable<ReturnType<typeof sampleTrackRailAtDistance>>,
+        currentVisualAngle: number | null = null
+    ) {
+        const railVelocity = sample.tangent.clone().multiplyScalar(cart.speed)
+
+        cart.distanceAlongTrack = sample.distanceAlongTrack
+        cart.t = track.trackLength <= ROTATION_EPSILON ? 0 : sample.distanceAlongTrack / track.trackLength
+        pos.position.copy(sample.point)
         pos.dirty = true
         vel.velocity.copy(railVelocity)
 
         const currentReferenceAngle = rotation ? rotation.rotation.z : cart.prevTrackAngle ?? 0
-        const currentVisualAngle = this.resolveVisualAngle(tangent, currentReferenceAngle)
-        const nextReferenceAngle = currentVisualAngle ?? currentReferenceAngle
+        const resolvedCurrentVisualAngle = currentVisualAngle ?? this.resolveVisualAngle(sample.tangent, currentReferenceAngle)
+        const nextReferenceAngle = resolvedCurrentVisualAngle ?? currentReferenceAngle
         const nextVisualAngle = this.resolveVisualAngle(railVelocity, nextReferenceAngle)
 
-        if (nextVisualAngle == null) return
+        if (nextVisualAngle == null) return false
 
         const curvatureAngularVelocity = this.estimateTrackAngularVelocity(
             track,
@@ -271,7 +318,7 @@ export class SCart extends System {
             nextVisualAngle
         )
         cart.angularVelocity = this.resolveAngularVelocityFromAngles(
-            currentVisualAngle,
+            resolvedCurrentVisualAngle,
             nextVisualAngle,
             dt,
             curvatureAngularVelocity
@@ -281,6 +328,126 @@ export class SCart extends System {
         if (rotation) {
             this.setRotationAngle(rotation, nextVisualAngle)
         }
+
+        const level = world.getResource(RLevel)
+        if (level?.completed) {
+            vel.velocity.set(0, 0, 0)
+            cart.angularVelocity = 0
+        }
+
+        return true
+    }
+
+    private getStationForTrack(world: World, track: CTrack) {
+        if (track.trackRole !== "stationStub" || !track.stationId) {
+            return null
+        }
+
+        const level = world.getResource(RLevel)
+        const stationEntityId = level?.stationEntities.get(track.stationId)
+        if (stationEntityId == null) {
+            return null
+        }
+
+        return world.getComponent(stationEntityId, CStation) ?? null
+    }
+
+    private applyStationBoostIfNeeded(world: World, cart: CCart, track: CTrack) {
+        const station = this.getStationForTrack(world, track)
+        if (!station || station.kind !== "start") return
+        if (cart.lastBoostStationId === station.stationId) return
+
+        cart.speed = Math.max(cart.speed, station.boostSpeed)
+        cart.speed = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, cart.speed))
+        cart.lastBoostStationId = station.stationId
+    }
+
+    private tryTransferAtTrackEnd(
+        world: World,
+        track: CTrack,
+        cart: CCart,
+        pos: CPosition,
+        vel: CVelocity,
+        rotation: CRotation | undefined,
+        dt: number,
+        nextDistance: number
+    ) {
+        if (cart.trackId == null) return false
+
+        const exitEndpoint = nextDistance <= 0 ? "start" : "end"
+        const overflow = nextDistance <= 0 ? -nextDistance : nextDistance - track.trackLength
+        const continuation = findConnectedTrackEndpoint(world, cart.trackId, exitEndpoint, TRACK_CONNECTION_DIST)
+        if (!continuation) return false
+
+        const nextTrack = world.getComponent(continuation.trackId, CTrack)
+        if (!nextTrack || nextTrack.physicsPoints.length < 2 || nextTrack.trackLength <= ROTATION_EPSILON) {
+            return false
+        }
+
+        const nextSpeed = continuation.endpoint === "start"
+            ? Math.abs(cart.speed)
+            : -Math.abs(cart.speed)
+
+        const targetDistance = continuation.endpoint === "start"
+            ? Math.min(nextTrack.trackLength, overflow)
+            : Math.max(0, nextTrack.trackLength - overflow)
+
+        const sample = sampleTrackRailAtDistance(
+            nextTrack.physicsPoints,
+            nextTrack.cumulativeLengths,
+            nextTrack.trackLength,
+            targetDistance
+        )
+        if (!sample) return false
+
+        cart.trackId = continuation.trackId
+        cart.lastTrackId = continuation.trackId
+        cart.speed = nextSpeed
+
+        const currentReferenceAngle = rotation ? rotation.rotation.z : cart.prevTrackAngle ?? 0
+        const currentVisualAngle = this.resolveVisualAngle(vel.velocity, currentReferenceAngle)
+        const updated = this.applyTrackSample(world, nextTrack, cart, pos, vel, rotation, dt, sample, currentVisualAngle)
+        if (!updated) return false
+
+        this.checkGoalStationArrival(world, cart, nextTrack, pos, vel, rotation)
+        return true
+    }
+
+    private checkGoalStationArrival(
+        world: World,
+        cart: CCart,
+        track: CTrack,
+        pos: CPosition,
+        vel: CVelocity,
+        rotation?: CRotation
+    ) {
+        const station = this.getStationForTrack(world, track)
+        if (!station || station.kind !== "goal") return false
+        if (cart.distanceAlongTrack > GOAL_CAPTURE_DISTANCE) return false
+
+        const level = world.getResource(RLevel)
+        if (level) {
+            level.completed = true
+        }
+
+        cart.goalReached = true
+        cart.speed = 0
+        cart.distanceAlongTrack = 0
+        cart.t = 0
+        cart.angularVelocity = 0
+        vel.velocity.set(0, 0, 0)
+
+        const stopPoint = track.physicsPoints[0] ?? pos.position
+        pos.position.copy(stopPoint)
+        pos.previousPosition.copy(stopPoint)
+        pos.dirty = true
+
+        if (rotation && cart.prevTrackAngle != null) {
+            this.setRotationAngle(rotation, cart.prevTrackAngle)
+            rotation.previousRotation.copy(rotation.rotation)
+        }
+
+        return true
     }
 
     private detachAtTrackEnd(
@@ -337,8 +504,13 @@ export class SCart extends System {
 
         const sim = world.getResource(RSimulationState)!
         const time = world.getResource(RTime)!
+        const level = world.getResource(RLevel)
 
         if (sim.state === ESimulationState.DrawingTrack) {
+            if (level) {
+                level.completed = false
+            }
+
             for (const [e, cart, pos, vel] of world.query3(CCart, CPosition, CVelocity)) {
                 this.resetCart(world, e, cart, pos, vel)
             }
@@ -355,6 +527,12 @@ export class SCart extends System {
                 const rotation = world.getComponent(e, CRotation)
                 this.beginInterpolatedStep(pos, rotation)
                 cart.reattachCooldown = Math.max(0, cart.reattachCooldown - dt)
+
+                if (cart.goalReached || level?.completed) {
+                    vel.velocity.set(0, 0, 0)
+                    cart.angularVelocity = 0
+                    continue
+                }
 
                 if (!cart.attached) {
                     this.updateFreeCart(world, cart, pos, vel, dt, rotation)

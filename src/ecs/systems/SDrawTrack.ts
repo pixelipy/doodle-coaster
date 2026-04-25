@@ -1,4 +1,5 @@
 import { BufferGeometry, Vector3 } from "three"
+import { CObstacle } from "../components/CObstacle"
 import { System } from "../core/system"
 import { RInput } from "../resources/RInput"
 import { CTrack } from "../components/CTrack"
@@ -9,6 +10,8 @@ import { FTrack } from "../factories/trackFactory"
 import { ESimulationState, RSimulationState } from "../resources/RSimulationState"
 import { buildTrackRail } from "../utils/trackRail"
 import { RSettings } from "../resources/RSettings"
+import type { TrackPointLock } from "../components/CTrack"
+import { CPosition } from "../components/CTransform"
 
 let MIN_DIST = 0.3
 let SNAP_DIST = 0.2
@@ -16,6 +19,11 @@ let ERASE_RADIUS = 0.45
 let ALLOW_SELF_JOINS = false
 let PHYSICS_POINT_SPACING = 0.05
 let RAIL_SMOOTHING_PASSES = 2
+
+type RawPointRun = {
+    points: Vector3[]
+    locks: TrackPointLock[]
+}
 
 export class SDrawTrack extends System {
 
@@ -68,6 +76,7 @@ export class SDrawTrack extends System {
 
         const track = world.getComponent(drawing.currentTrackId, CTrack)
         if (!track) return
+        if (track.immutable) return
 
         let dirty = false
 
@@ -79,14 +88,16 @@ export class SDrawTrack extends System {
                 : track.rawPoints[track.rawPoints.length - 1]
 
             if (!anchor) {
+                if (!canAppendPoint(world, point)) return
+
                 if (drawing.extendFromStart) {
-                    track.rawPoints.unshift(point)
+                    track.unshiftRawPoint(point)
                 } else {
-                    track.rawPoints.push(point)
+                    track.pushRawPoint(point)
                 }
 
                 dirty = true
-            } else if (appendInterpolatedRawPoints(track, drawing.extendFromStart, point, MIN_DIST)) {
+            } else if (appendInterpolatedRawPoints(world, track, drawing.extendFromStart, point, MIN_DIST)) {
                 dirty = true
             }
         }
@@ -107,15 +118,36 @@ function beginTrackStroke(world: World, drawing: RTrackManager, mouse: Vector3) 
     const snap = findClosestEndpoint(world, mouse, SNAP_DIST)
 
     if (snap) {
+        const snapTrack = world.getComponent(snap.trackId, CTrack)
+        const snapPoint = snapTrack
+            ? getTrackEndpointPoint(snapTrack, snap.endpoint)
+            : null
+
+        if (!snapTrack || !snapPoint) return
+
+        if (snapTrack.immutable || snapTrack.isEndpointProtected(snap.endpoint)) {
+            const entity = new FTrack().init(world)
+            const track = world.getComponent(entity, CTrack)!
+            track.pushRawPoint(snapPoint)
+
+            drawing.currentTrackId = entity
+            drawing.extendFromStart = false
+            return
+        }
+
         drawing.currentTrackId = snap.trackId
         drawing.extendFromStart = snap.endpoint === "start"
+        return
+    }
+
+    if (findBlockingObstacle(world, mouse)) {
         return
     }
 
     const entity = new FTrack().init(world)
     const track = world.getComponent(entity, CTrack)!
 
-    track.rawPoints.push(mouse)
+    track.pushRawPoint(mouse)
     drawing.currentTrackId = entity
     drawing.extendFromStart = false
 }
@@ -137,6 +169,7 @@ function finishTrackStroke(world: World, drawing: RTrackManager, mouse: Vector3)
 }
 
 function appendInterpolatedRawPoints(
+    world: World,
     track: CTrack,
     extendFromStart: boolean,
     targetPoint: Vector3,
@@ -158,11 +191,14 @@ function appendInterpolatedRawPoints(
 
     for (let step = 1; step <= steps; step++) {
         const point = anchor.clone().addScaledVector(direction, spacing * step)
+        if (!canAppendPoint(world, point)) {
+            break
+        }
 
         if (extendFromStart) {
-            track.rawPoints.unshift(point)
+            track.unshiftRawPoint(point)
         } else {
-            track.rawPoints.push(point)
+            track.pushRawPoint(point)
         }
 
         inserted = true
@@ -185,6 +221,14 @@ function tryJoinTrackOnRelease(
         return
     }
 
+    const joinTrack = world.getComponent(joinTarget.trackId, CTrack)
+    if (!joinTrack) return
+
+    if (joinTrack.immutable || joinTrack.isEndpointProtected(joinTarget.endpoint)) {
+        snapTrackToExistingEndpoint(world, currentTrackId, extendFromStart, joinTrack, joinTarget.endpoint)
+        return
+    }
+
     mergeTracks(world, currentTrackId, extendFromStart, joinTarget.trackId, joinTarget.endpoint)
 }
 
@@ -196,9 +240,10 @@ function eraseTrackAtPoint(
 ) {
     const track = world.getComponent(trackId, CTrack)
     if (!track || track.rawPoints.length === 0) return
+    if (track.immutable) return
 
-    const runs = splitRawPointRuns(track.rawPoints, eraseCenter, eraseRadius)
-    const survivingRuns = runs.filter(run => run.length >= 3)
+    const runs = splitRawPointRunsPreservingProtected(track.rawPoints, track.pointLocks, eraseCenter, eraseRadius)
+    const survivingRuns = runs.filter(run => run.points.length >= 2)
 
     if (survivingRuns.length === 0) {
         FTrack.destroy(world, trackId)
@@ -206,7 +251,7 @@ function eraseTrackAtPoint(
         return
     }
 
-    applyRawPoints(track, survivingRuns[0])
+    applyRawPoints(track, survivingRuns[0].points, survivingRuns[0].locks)
     rebuildTrackGeometry(track)
 
     for (let i = 1; i < survivingRuns.length; i++) {
@@ -214,7 +259,7 @@ function eraseTrackAtPoint(
         const newTrack = world.getComponent(newTrackId, CTrack)
         if (!newTrack) continue
 
-        applyRawPoints(newTrack, survivingRuns[i])
+        applyRawPoints(newTrack, survivingRuns[i].points, survivingRuns[i].locks)
         rebuildTrackGeometry(newTrack)
     }
 }
@@ -283,31 +328,41 @@ function mergeTracks(
 ) {
     const primaryTrack = world.getComponent(primaryTrackId, CTrack)
     const secondaryTrack = world.getComponent(secondaryTrackId, CTrack)
-    if (!primaryTrack || !secondaryTrack || secondaryTrack.rawPoints.length < 2) return
+    if (!primaryTrack || !secondaryTrack || secondaryTrack.rawPoints.length < 2 || secondaryTrack.immutable) return
 
     const targetPoint = secondaryEndpoint === "start"
         ? secondaryTrack.rawPoints[0].clone()
         : secondaryTrack.rawPoints[secondaryTrack.rawPoints.length - 1].clone()
 
-    const primaryPoints = primaryTrack.rawPoints.map(point => point.clone())
-    if (primaryPoints.length === 0) return
+    const primaryData = cloneTrackData(primaryTrack)
+    const secondaryData = cloneTrackData(secondaryTrack)
+    if (primaryData.length === 0) return
 
     if (extendFromStart) {
-        primaryPoints[0] = targetPoint.clone()
+        primaryData[0] = { ...primaryData[0], point: targetPoint.clone() }
 
         const prefix = secondaryEndpoint === "end"
-            ? secondaryTrack.rawPoints.slice(0, -1)
-            : secondaryTrack.rawPoints.slice().reverse().slice(0, -1)
+            ? secondaryData.slice(0, -1)
+            : secondaryData.slice().reverse().slice(0, -1)
 
-        applyRawPoints(primaryTrack, [...prefix, ...primaryPoints])
+        applyRawPoints(
+            primaryTrack,
+            [...prefix, ...primaryData].map(entry => entry.point),
+            [...prefix, ...primaryData].map(entry => entry.lock)
+        )
     } else {
-        primaryPoints[primaryPoints.length - 1] = targetPoint.clone()
+        const lastIndex = primaryData.length - 1
+        primaryData[lastIndex] = { ...primaryData[lastIndex], point: targetPoint.clone() }
 
         const suffix = secondaryEndpoint === "start"
-            ? secondaryTrack.rawPoints.slice(1)
-            : secondaryTrack.rawPoints.slice().reverse().slice(1)
+            ? secondaryData.slice(1)
+            : secondaryData.slice().reverse().slice(1)
 
-        applyRawPoints(primaryTrack, [...primaryPoints, ...suffix])
+        applyRawPoints(
+            primaryTrack,
+            [...primaryData, ...suffix].map(entry => entry.point),
+            [...primaryData, ...suffix].map(entry => entry.lock)
+        )
     }
 
     rebuildTrackGeometry(primaryTrack)
@@ -328,44 +383,50 @@ function closeTrackLoop(
         : track.rawPoints[0].clone()
 
     if (extendFromStart) {
-        track.rawPoints[0] = loopPoint
+        track.replaceRawPoint(0, loopPoint)
     } else {
-        track.rawPoints[track.rawPoints.length - 1] = loopPoint
+        track.replaceRawPoint(track.rawPoints.length - 1, loopPoint)
     }
 
     rebuildTrackGeometry(track)
 }
 
-function splitRawPointRuns(
+function splitRawPointRunsPreservingProtected(
     rawPoints: Vector3[],
+    pointLocks: TrackPointLock[],
     eraseCenter: Vector3,
     eraseRadius: number
-): Vector3[][] {
-    const runs: Vector3[][] = []
-    let currentRun: Vector3[] = []
+): RawPointRun[] {
+    const runs: RawPointRun[] = []
+    let currentRun: RawPointRun = { points: [], locks: [] }
 
-    for (const point of rawPoints) {
-        if (point.distanceTo(eraseCenter) <= eraseRadius) {
-            if (currentRun.length > 0) {
+    for (let i = 0; i < rawPoints.length; i++) {
+        const point = rawPoints[i]
+        const lock = pointLocks[i] ?? "free"
+        const isProtected = lock === "protected"
+
+        if (!isProtected && point.distanceTo(eraseCenter) <= eraseRadius) {
+            if (currentRun.points.length > 0) {
                 runs.push(currentRun)
-                currentRun = []
+                currentRun = { points: [], locks: [] }
             }
 
             continue
         }
 
-        currentRun.push(point.clone())
+        currentRun.points.push(point.clone())
+        currentRun.locks.push(lock)
     }
 
-    if (currentRun.length > 0) {
+    if (currentRun.points.length > 0) {
         runs.push(currentRun)
     }
 
     return runs
 }
 
-function applyRawPoints(track: CTrack, rawPoints: Vector3[]) {
-    track.rawPoints = rawPoints.map(point => point.clone())
+function applyRawPoints(track: CTrack, rawPoints: Vector3[], pointLocks?: TrackPointLock[]) {
+    track.setRawPoints(rawPoints, pointLocks)
 }
 
 function rebuildTrackGeometry(track: CTrack) {
@@ -449,6 +510,7 @@ function findClosestTrack(
     let minDist = maxDist
 
     for (const [trackId, track] of world.query1(CTrack)) {
+        if (track.immutable) continue
 
         if (!track.sampled || track.sampled.length < 2) continue
 
@@ -478,4 +540,53 @@ function distanceToSegment(p: Vector3, a: Vector3, b: Vector3): number {
     const closestPoint = a.clone().add(ab.multiplyScalar(t))
 
     return p.distanceTo(closestPoint)
+}
+
+function getTrackEndpointPoint(track: CTrack, endpoint: "start" | "end") {
+    return endpoint === "start"
+        ? track.rawPoints[0]?.clone() ?? null
+        : track.rawPoints[track.rawPoints.length - 1]?.clone() ?? null
+}
+
+function snapTrackToExistingEndpoint(
+    world: World,
+    trackId: number,
+    extendFromStart: boolean,
+    targetTrack: CTrack,
+    targetEndpoint: "start" | "end"
+) {
+    const track = world.getComponent(trackId, CTrack)
+    if (!track) return
+
+    const targetPoint = getTrackEndpointPoint(targetTrack, targetEndpoint)
+    if (!targetPoint) return
+
+    if (extendFromStart) {
+        track.replaceRawPoint(0, targetPoint)
+    } else {
+        track.replaceRawPoint(track.rawPoints.length - 1, targetPoint)
+    }
+
+    rebuildTrackGeometry(track)
+}
+
+function cloneTrackData(track: CTrack) {
+    return track.rawPoints.map((point, index) => ({
+        point: point.clone(),
+        lock: track.getPointLock(index),
+    }))
+}
+
+function findBlockingObstacle(world: World, point: Vector3) {
+    for (const [_entityId, obstacle, position] of world.query2(CObstacle, CPosition)) {
+        if (position.position.distanceTo(point) <= obstacle.radius) {
+            return obstacle
+        }
+    }
+
+    return null
+}
+
+function canAppendPoint(world: World, point: Vector3) {
+    return findBlockingObstacle(world, point) === null
 }

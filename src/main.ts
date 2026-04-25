@@ -11,7 +11,6 @@ import { RTime } from './ecs/resources/RTime';
 import { RWindow } from './ecs/resources/RWindow';
 import { RAssetManager } from './ecs/resources/RAssetManager';
 import { RInput } from './ecs/resources/RInput';
-import { RPlayerSettings } from './ecs/resources/RPlayerSettings';
 import { RGrid } from './ecs/resources/RGrid';
 
 //factories
@@ -32,9 +31,10 @@ import { SUpdateSimulation } from './ecs/systems/SUpdateSimulation';
 import { SPassenger } from './ecs/systems/SPassenger';
 import { SCameraController } from './ecs/systems/SCameraController';
 import { FCamera } from './ecs/factories/cameraFactory';
-import { FCart4Passengers } from './ecs/factories/cart/cart4passengers';
 import { RRng } from './ecs/resources/RRng';
 import { RSettings } from './ecs/resources/RSettings';
+import { RLevel } from './ecs/resources/RLevel';
+import { loadLevelDefinition, spawnLevel } from './ecs/utils/levelLoader';
 
 const world = new World();
 const three = new RThree();
@@ -57,17 +57,17 @@ world.addResource(three);
 world.addResource(assetManager);
 world.addResource(new RRng());
 world.addResource(new RTrackManager());
-world.addResource(new RPlayerSettings());
 world.addResource(new RGrid({ cellSize: 1.5 }));
 world.addResource(new RTime());
 world.addResource(new RWindow());
 world.addResource(new RInput());
 world.addResource(new RRaycast());
 world.addResource(new RSimulationState());
+world.addResource(new RLevel());
 
 //initialize entities
-//FTrack(world);
-const cartId = FCart4Passengers(world)
+const levelDefinition = await loadLevelDefinition('/levels/level-001.json');
+const { cartId } = spawnLevel(world, levelDefinition);
 
 //creates camera component
 FCamera(world, cartId);

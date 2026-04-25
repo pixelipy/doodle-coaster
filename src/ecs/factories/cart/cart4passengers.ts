@@ -8,16 +8,22 @@ import { CVelocity } from "../../components/CVelocity";
 import type { World } from "../../core/world";
 import { RRng } from "../../resources/RRng";
 
-export const FCart4Passengers = (world: World): number => {
+export const FCart4Passengers = (
+    world: World,
+    spawnConfig: { position?: Vector3, rotationZ?: number } = {}
+): number => {
     const cartId = FCart(world);
     const rng = world.getResource(RRng)!;
 
     const cartPos = world.getComponent(cartId, CPosition)!;
-    cartPos.position.set(0, 0, 0.0);
+    cartPos.position.copy(spawnConfig.position ?? new Vector3(0, 0, 0));
+    cartPos.previousPosition.copy(cartPos.position);
     const cart = world.getComponent(cartId, CCart)!;
     cart.spawnPosition.copy(cartPos.position);
 
     const cartRotation = world.getComponent(cartId, CRotation)!;
+    cartRotation.rotation.set(0, 0, spawnConfig.rotationZ ?? 0);
+    cartRotation.previousRotation.copy(cartRotation.rotation);
     cart.spawnRotation.copy(cartRotation.rotation);
 
     // number of passengers

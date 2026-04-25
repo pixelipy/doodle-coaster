@@ -6,7 +6,7 @@ import { RInput } from "../resources/RInput";
 import { ESimulationState, RSimulationState } from "../resources/RSimulationState";
 
 export class SUpdateSimulation extends System{
-    update(world: World, deltaTime: number): void {
+    update(world: World, _deltaTime: number): void {
         //updates simulation state on key pressed
         const input = world.getResource(RInput)!;
         const simState = world.getResource(RSimulationState)!;

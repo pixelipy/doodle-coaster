@@ -14,6 +14,8 @@ export class CCart {
 
     angularVelocity: number = 0; // for physics when detached, in radians per second. Positive is clockwise when looking in the direction of travel.
     prevTrackAngle: number | null = null; // keeps track of angle on previous frame.
+    lastBoostStationId: string | null = null;
+    goalReached: boolean = false;
 
     spawnPosition: Vector3 = new Vector3();
     spawnRotation: Vector3 = new Vector3();

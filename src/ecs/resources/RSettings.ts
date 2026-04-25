@@ -1,4 +1,16 @@
 export class RSettings {
+    camera: {
+        PAN_SPEED: number,
+        DEFAULT_Z_VALUE_DESKTOP: number,
+        DRAWING_Z_VALUE_DESKTOP: number,
+        DEFAULT_Z_VALUE_MOBILE: number,
+        DRAWING_Z_VALUE_MOBILE: number,
+        ZOOM_SPEED: number,
+        MOBILE_PAN_SPEED: number,
+        MOBILE_ZOOM_SPEED: number,
+    }
+    
+    
     physics: {
         GRAVITY: number,
     }
@@ -57,6 +69,18 @@ export class RSettings {
             AIR_SPIN_SPEED_Z: -7,
             SUPPORT_THRESHOLD: -10,
             AIRBORNE_SUPPORT_THRESHOLD: -3,
+        }
+
+        this.camera = {
+            PAN_SPEED: 0.01,
+            ZOOM_SPEED: 0.01,
+            MOBILE_PAN_SPEED: 0.02,
+            MOBILE_ZOOM_SPEED: 0.03,
+            DEFAULT_Z_VALUE_DESKTOP: 5,
+            DRAWING_Z_VALUE_DESKTOP: 7,
+
+            DEFAULT_Z_VALUE_MOBILE: 8,
+            DRAWING_Z_VALUE_MOBILE: 10,
         }
     }
 }

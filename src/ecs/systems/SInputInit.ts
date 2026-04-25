@@ -12,6 +12,56 @@ export class SInputInit extends System {
     init(world: World): void {
         const input = world.getResource(RInput)!;
 
+        const clearDrawTouch = () => {
+            input.activeDrawTouchId = null;
+            input.previousDrawTouchPosition = null;
+        };
+
+        const releasePrimaryTouch = () => {
+            if (input.lmbDown) {
+                input.lmbDown = false;
+                input.lmbReleased = true;
+            }
+
+            clearDrawTouch();
+        };
+
+        const beginPrimaryTouch = (touch: Touch) => {
+            input.activeDrawTouchId = touch.identifier;
+            input.previousDrawTouchPosition = { x: touch.clientX, y: touch.clientY };
+            input.mousePosition.set(touch.clientX, touch.clientY);
+            input.mouseDelta.set(0, 0);
+
+            if (!input.lmbDown) {
+                input.lmbPressed = true;
+            }
+
+            input.lmbDown = true;
+        };
+
+        const resetGestureTracking = () => {
+            input.previousPinchDistance = 0;
+            input.previousTouchCenter = { x: 0, y: 0 };
+            input.panDelta.x = 0;
+            input.panDelta.y = 0;
+        };
+
+        const syncGestureTrackingFromTouches = () => {
+            if (input.touches.size !== 2) {
+                resetGestureTracking();
+                return;
+            }
+
+            const [p1, p2] = Array.from(input.touches.values());
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            input.previousPinchDistance = Math.sqrt(dx * dx + dy * dy);
+            input.previousTouchCenter = {
+                x: (p1.x + p2.x) / 2,
+                y: (p1.y + p2.y) / 2,
+            };
+        };
+
         window.addEventListener("keydown", (e) => {
             if (!input.keysDown.has(e.key)) {
                 input.keysPressed.add(e.key);
@@ -35,6 +85,7 @@ export class SInputInit extends System {
                     input.mmbPressed = true;
                 }
                 input.mmbDown = true;
+                e.preventDefault();
             } else if (e.button === 2) {
                 if (!input.rmbDown) {
                     input.rmbPressed = true;
@@ -59,8 +110,146 @@ export class SInputInit extends System {
         window.addEventListener("mousemove", (e) => {
             input.mouseDelta.set(e.movementX, e.movementY);
             input.mousePosition.set(e.clientX, e.clientY);
+
+            if (input.mmbDown) {
+                input.panDelta.x = e.movementX;
+                input.panDelta.y = e.movementY;
+            }
         });
 
+        window.addEventListener("wheel", (e) => {
+            input.zoomDelta += e.deltaY;
+            e.preventDefault();
+        }, { passive: false });
+
+        // touch
+
+        window.addEventListener("touchstart", (e) => {
+            for (let touch of e.touches) {
+                input.touches.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
+            }
+
+            if (input.touches.size === 1 && !input.touchGestureActive) {
+                const touch = e.touches[0];
+                if (touch) {
+                    beginPrimaryTouch(touch);
+                }
+            } else if (input.touches.size === 2) {
+                releasePrimaryTouch();
+                input.touchGestureActive = true;
+                syncGestureTrackingFromTouches();
+            }
+        });
+
+
+        // -------------------------
+        // TOUCH MOVE
+        // -------------------------
+        window.addEventListener("touchmove", (e) => {
+
+            for (const t of e.touches) {
+                input.touches.set(t.identifier, { x: t.clientX, y: t.clientY });
+            }
+
+            if (input.touches.size === 1 && !input.touchGestureActive && input.activeDrawTouchId !== null) {
+                const activeTouch = Array.from(e.touches).find(touch => touch.identifier === input.activeDrawTouchId);
+                if (activeTouch) {
+                    const previousPosition = input.previousDrawTouchPosition ?? {
+                        x: activeTouch.clientX,
+                        y: activeTouch.clientY,
+                    };
+
+                    input.mousePosition.set(activeTouch.clientX, activeTouch.clientY);
+                    input.mouseDelta.set(
+                        activeTouch.clientX - previousPosition.x,
+                        activeTouch.clientY - previousPosition.y
+                    );
+                    input.previousDrawTouchPosition = {
+                        x: activeTouch.clientX,
+                        y: activeTouch.clientY,
+                    };
+                }
+            } else if (input.touches.size === 2) {
+                input.touchGestureActive = true;
+
+                const pts = Array.from(input.touches.values());
+                const p1 = pts[0];
+                const p2 = pts[1];
+
+                // -------------------------
+                // PINCH → zoomDelta
+                // -------------------------
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (input.previousPinchDistance !== 0) {
+                    input.zoomDelta -= (dist - input.previousPinchDistance);
+                }
+
+                input.previousPinchDistance = dist;
+
+                // -------------------------
+                // PAN → panDelta
+                // -------------------------
+                const cx = (p1.x + p2.x) / 2;
+                const cy = (p1.y + p2.y) / 2;
+
+                if (input.previousTouchCenter.x !== 0 || input.previousTouchCenter.y !== 0) {
+                    input.panDelta.x += (cx - input.previousTouchCenter.x);
+                    input.panDelta.y += (cy - input.previousTouchCenter.y);
+                }
+
+                input.previousTouchCenter.x = cx;
+                input.previousTouchCenter.y = cy;
+            }
+
+            e.preventDefault();
+        }, { passive: false });
+
+
+        window.addEventListener("touchend", (e) => {
+            const endedDrawTouch = Array.from(e.changedTouches)
+                .some(touch => touch.identifier === input.activeDrawTouchId);
+
+            for (const touch of e.changedTouches) {
+                input.touches.delete(touch.identifier);
+            }
+
+            if (endedDrawTouch) {
+                releasePrimaryTouch();
+            }
+
+            if (input.touches.size === 2) {
+                input.touchGestureActive = true;
+                syncGestureTrackingFromTouches();
+            } else {
+                input.touchGestureActive = false;
+                resetGestureTracking();
+                clearDrawTouch();
+            }
+        })
+
+        window.addEventListener("touchcancel", (e) => {
+            const cancelledDrawTouch = Array.from(e.changedTouches)
+                .some(touch => touch.identifier === input.activeDrawTouchId);
+
+            for (const touch of e.changedTouches) {
+                input.touches.delete(touch.identifier);
+            }
+
+            if (cancelledDrawTouch) {
+                releasePrimaryTouch();
+            }
+
+            input.touchGestureActive = input.touches.size === 2;
+            if (input.touchGestureActive) {
+                syncGestureTrackingFromTouches();
+            } else {
+                resetGestureTracking();
+                clearDrawTouch();
+            }
+        });
     }
 
 }

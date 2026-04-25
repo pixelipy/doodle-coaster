@@ -1,6 +1,6 @@
 //gets player inputs
 
-import { Vector2, Vector3 } from "three"
+import { Vector2 } from "three"
 
 export class RInput {
     keysDown: Set<string> = new Set()
@@ -21,4 +21,17 @@ export class RInput {
 
     mousePosition: Vector2 = new Vector2() //in screen space, z=0
     mouseDelta: Vector2 = new Vector2() //change in mouse position since last frame
+
+    panDelta = {x: 0, y: 0} //for panning with middle mouse button
+    zoomDelta: number = 0 //positive for scrolling up, negative for scrolling down
+    
+    //mobile
+    touches = new Map<number, {x: number, y: number}>()
+    activeDrawTouchId: number | null = null
+    previousDrawTouchPosition: { x: number, y: number } | null = null
+    touchGestureActive: boolean = false
+
+    //internal
+    previousPinchDistance: number = 0
+    previousTouchCenter = {x: 0, y: 0}
 }
