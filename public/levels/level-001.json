@@ -1,6 +1,12 @@
 {
   "id": "level-001",
   "cartSpawnStationId": "start-a",
+  "bounds": {
+    "minX": -5,
+    "maxX": 5,
+    "minY": -2,
+    "maxY": 2
+  },
   "stations": [
     {
       "id": "start-a",

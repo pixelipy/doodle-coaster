@@ -4,6 +4,13 @@ export type LevelVectorDefinition = {
     z?: number
 }
 
+export type LevelBoundsDefinition = {
+    minX: number
+    maxX: number
+    minY: number
+    maxY: number
+}
+
 export type LevelStationDefinition = {
     id: string
     kind: "start" | "goal"
@@ -25,6 +32,7 @@ export type LevelDefinition = {
     cartSpawnStationId: string
     stations: LevelStationDefinition[]
     obstacles: LevelObstacleDefinition[]
+    bounds: LevelBoundsDefinition
 }
 
 export class RLevel {
@@ -37,6 +45,13 @@ export class RLevel {
     stationStubTracks = new Map<string, number>()
     obstacleEntities = new Map<string, number>()
 
+    bounds: LevelBoundsDefinition = {
+        minX: -10,
+        maxX: 10,
+        minY: -10,
+        maxY: 10,
+    }
+
     reset(definition: LevelDefinition) {
         this.currentLevelId = definition.id
         this.definition = definition
@@ -45,5 +60,6 @@ export class RLevel {
         this.stationEntities.clear()
         this.stationStubTracks.clear()
         this.obstacleEntities.clear()
+        this.bounds = definition.bounds
     }
 }

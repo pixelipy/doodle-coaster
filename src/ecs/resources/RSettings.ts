@@ -8,6 +8,10 @@ export class RSettings {
         ZOOM_SPEED: number,
         MOBILE_PAN_SPEED: number,
         MOBILE_ZOOM_SPEED: number,
+        MIN_ZOOM_DESKTOP: number,
+        MAX_ZOOM_DESKTOP: number,
+        MIN_ZOOM_MOBILE: number,
+        MAX_ZOOM_MOBILE: number,
     }
     
     
@@ -76,11 +80,16 @@ export class RSettings {
             ZOOM_SPEED: 0.01,
             MOBILE_PAN_SPEED: 0.02,
             MOBILE_ZOOM_SPEED: 0.03,
-            DEFAULT_Z_VALUE_DESKTOP: 5,
-            DRAWING_Z_VALUE_DESKTOP: 7,
+            DEFAULT_Z_VALUE_DESKTOP: 4,
+            DRAWING_Z_VALUE_DESKTOP: 4,
 
             DEFAULT_Z_VALUE_MOBILE: 4,
             DRAWING_Z_VALUE_MOBILE: 5,
+
+            MIN_ZOOM_DESKTOP: 1,
+            MAX_ZOOM_DESKTOP: 5,
+            MIN_ZOOM_MOBILE: 1,
+            MAX_ZOOM_MOBILE: 10,
         }
     }
 }

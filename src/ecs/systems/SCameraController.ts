@@ -8,6 +8,8 @@ import { RInput } from "../resources/RInput";
 import { RTime } from "../resources/RTime";
 import { RSettings } from "../resources/RSettings";
 import { RWindow } from "../resources/RWindow";
+import { RLevel, type LevelBoundsDefinition } from "../resources/RLevel";
+import type { Vector3 } from "three";
 
 export class SCameraController extends System {
     update(world: World, dt: number): void {
@@ -16,6 +18,7 @@ export class SCameraController extends System {
         const settings = world.getResource(RSettings)!;
         const window = world.getResource(RWindow)!;
         const simulationState = world.getResource(RSimulationState)!;
+        const bounds = world.getResource(RLevel)!.bounds;
 
         let cameraComp: CCamera | null = null;
         let cameraPosition: CPosition | null = null;
@@ -38,12 +41,16 @@ export class SCameraController extends System {
         let camera_z_default = settings.camera.DEFAULT_Z_VALUE_DESKTOP;
         let camera_pan_speed = settings.camera.PAN_SPEED;
         let camera_zoom_speed = settings.camera.ZOOM_SPEED;
+        let min_zoom = settings.camera.MIN_ZOOM_DESKTOP;
+        let max_zoom = settings.camera.MAX_ZOOM_DESKTOP;
 
         if (window.width < 600) {
             camera_z_draw = settings.camera.DRAWING_Z_VALUE_MOBILE;
             camera_z_default = settings.camera.DEFAULT_Z_VALUE_MOBILE;
             camera_pan_speed = settings.camera.MOBILE_PAN_SPEED;
             camera_zoom_speed = settings.camera.MOBILE_ZOOM_SPEED;
+            min_zoom = settings.camera.MIN_ZOOM_MOBILE;
+            max_zoom = settings.camera.MAX_ZOOM_MOBILE;
         }
 
 
@@ -51,11 +58,12 @@ export class SCameraController extends System {
             //return to default position, and allow panning.
             //add offset later.
 
-            cameraComp.zoom = clamp(camera_z_draw + cameraComp.panOffset.z, cameraComp.min_zoom, cameraComp.max_zoom);
+            cameraComp.zoom = clamp(camera_z_draw + cameraComp.panOffset.z, min_zoom, max_zoom);
             cameraComp.panOffset.z = cameraComp.zoom - camera_z_draw;
 
 
-            const targetPos = cartPos.previousPosition.clone().lerp(cartPos.position, time.interpolationAlpha);
+            const followTarget = cartPos.previousPosition.clone().lerp(cartPos.position, time.interpolationAlpha);
+            const targetPos = followTarget.clone();
             targetPos.z = cameraComp.zoom; // set z to zoom level for drawing mode
 
             const currentPos = cameraPosition.position.clone();
@@ -72,13 +80,17 @@ export class SCameraController extends System {
 
             if (hasZoomInput) {
                 cameraComp.panOffset.z += input.zoomDelta * camera_zoom_speed;
-                cameraComp.zoom = clamp(camera_z_draw + cameraComp.panOffset.z, cameraComp.min_zoom, cameraComp.max_zoom);
+                cameraComp.zoom = clamp(camera_z_draw + cameraComp.panOffset.z, min_zoom, max_zoom);
                 cameraComp.panOffset.z = cameraComp.zoom - camera_z_draw;
             }
 
             targetPos.x += cameraComp.panOffset.x;
             targetPos.y += cameraComp.panOffset.y;
             targetPos.z = cameraComp.zoom;
+
+            applySoftBounds(targetPos, bounds);
+            cameraComp.panOffset.x = targetPos.x - followTarget.x;
+            cameraComp.panOffset.y = targetPos.y - followTarget.y;
 
             if (isActivelyControllingCamera) {
                 currentPos.lerp(targetPos, Math.min(1, 20 * dt)); // snap to target faster when panning for better responsiveness
@@ -113,4 +125,12 @@ export class SCameraController extends System {
 
 function clamp(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
+}
+
+function applySoftBounds(pos: Vector3, bounds: LevelBoundsDefinition, strength = 0.1) {
+    const clampedX = clamp(pos.x, bounds.minX, bounds.maxX);
+    const clampedY = clamp(pos.y, bounds.minY, bounds.maxY);
+
+    pos.x += (clampedX - pos.x) * strength;
+    pos.y += (clampedY - pos.y) * strength;
 }

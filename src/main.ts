@@ -39,6 +39,7 @@ import { SCameraController } from './ecs/systems/SCameraController';
 //utils
 import { loadLevelDefinition, spawnLevel } from './ecs/utils/levelLoader';
 import { SUI } from './ecs/systems/SUI';
+import { REvents } from './ecs/resources/REvents';
 
 const world = new World();
 const three = new RThree();
@@ -56,6 +57,7 @@ await assetManager.loadAll({
 });
 
 //Initilize Resources
+world.addResource(new REvents());
 world.addResource(new RSettings());
 world.addResource(three);
 world.addResource(assetManager);

@@ -1,3 +1,4 @@
+import { REvents } from "../resources/REvents";
 import type { System } from "./system";
 
 type ComponentClass<T> = new (...args: any[]) => T;
@@ -91,9 +92,14 @@ export class World {
     }
 
     update(deltaTime: number): void {
+
+        const events = this.getResource(REvents);
+        events?.swap();
+
         for (const system of this.systems) {
             system.update?.(this, deltaTime);
         }
+
     }
 
     // --------------------------------------------------

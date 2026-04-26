@@ -46,10 +46,6 @@ export class SDrawTrack extends System {
 
         if (simulationState.state !== ESimulationState.DrawingTrack) return
 
-        if (input.keysPressed.has("e")) {
-            simulationState.drawingMode = simulationState.drawingMode === "erase" ? "draw" : "erase"
-        }
-
         if (simulationState.drawingMode === "erase") {
             if (input.lmbDown) {
                 const mouse = getFlatRaycastPoint(raycast)
