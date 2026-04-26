@@ -30,8 +30,8 @@ export const FCart4Passengers = (
     const count = 4 // try 4 (2x2), 9 (3x3), etc.
     const size = Math.ceil(Math.sqrt(count)) // grid size
 
-    const spacing = 0.12
-    const height = 0.15
+    const spacing = 0.05
+    const height = 0.2
 
     for (let i = 0; i < count; i++) {
 

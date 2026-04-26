@@ -8,7 +8,7 @@ import { CVelocity } from "../components/CVelocity";
 
 export function FPassenger(world: World, position: Vector3): number {
     const three = world.getResource(RThree)!;
-    const mesh = new Mesh(new BoxGeometry(0.1, 0.1, 0.1), new MeshNormalMaterial());
+    const mesh = new Mesh(new BoxGeometry(0.04, 0.1, 0.04), new MeshNormalMaterial());
 
 
     three.scene.add(mesh);

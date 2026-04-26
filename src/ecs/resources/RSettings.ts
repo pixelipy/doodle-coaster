@@ -80,10 +80,10 @@ export class RSettings {
             ZOOM_SPEED: 0.01,
             MOBILE_PAN_SPEED: 0.02,
             MOBILE_ZOOM_SPEED: 0.03,
-            DEFAULT_Z_VALUE_DESKTOP: 4,
+            DEFAULT_Z_VALUE_DESKTOP: 2,
             DRAWING_Z_VALUE_DESKTOP: 4,
 
-            DEFAULT_Z_VALUE_MOBILE: 4,
+            DEFAULT_Z_VALUE_MOBILE: 2,
             DRAWING_Z_VALUE_MOBILE: 5,
 
             MIN_ZOOM_DESKTOP: 1,

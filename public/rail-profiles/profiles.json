@@ -8,21 +8,21 @@
       "tubeSegmentLength": 0.09,
       "rails": [
         {
-          "lateralOffset": 0,
+          "lateralOffset": 0.06,
           "verticalOffset": 0.05,
           "radius": 0.01,
           "radialSegments": 8,
           "materialKey": "yellow"
         },
         {
-          "lateralOffset": 0,
+          "lateralOffset": 0.06,
           "verticalOffset": -0.05,
           "radius": 0.01,
           "radialSegments": 8,
           "materialKey": "yellow"
         },
         {
-          "lateralOffset": -0.05,
+          "lateralOffset": 0,
           "verticalOffset": 0,
           "radius": 0.02,
           "radialSegments": 8,

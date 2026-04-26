@@ -13,8 +13,8 @@ export function FCart(world: World): number {
     const scene = three.scene;
 
     const cartParent = new Object3D()
-    const mesh = new Mesh(new BoxGeometry(0.3, 0.15, 0.3), new MeshNormalMaterial());
-    mesh.position.y = 0.075;
+    const mesh = new Mesh(new BoxGeometry(0.2, 0.2, 0.1), new MeshNormalMaterial());
+    mesh.position.y = 0.1;
     cartParent.add(mesh);
     scene.add(cartParent);
 
