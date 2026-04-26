@@ -1,13 +1,27 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>crossy-ecs</title>
-  </head>
-  <body>
-    <canvas id="game"></canvas>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>crossy-ecs</title>
+</head>
+
+<body>
+  <canvas id="game"></canvas>
+  <div id="game-ui">
+    <div class="ui-buttons">
+      <div class="ui-button-container">
+        <button class="ui-button default" id="play-pause-button"><img class="ui-icons-img" src="/icons/ui/play.svg" alt="Play Simulation" /></button>
+      </div>
+      <div class="ui-button-container">
+        <button class="ui-button active" id="draw-button"><img class="ui-icons-img" src="/icons/ui/edit.svg" alt="Edit Track" /></button>
+        <button class="ui-button inactive" id="erase-button"><img class="ui-icons-img" src="/icons/ui/erase.svg" alt="Erase Track" /></button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
 </html>

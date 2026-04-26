@@ -7,7 +7,7 @@
       "kind": "start",
       "position": { "x": -5, "y": 0, "z": 0 },
       "direction": { "x": 1, "y": 0, "z": 0 },
-      "stubLength": 1.5,
+      "stubLength": 0.8,
       "boostSpeed": 2.5,
       "radius": 0.7
     },
@@ -16,7 +16,7 @@
       "kind": "goal",
       "position": { "x": 5, "y": 0, "z": 0 },
       "direction": { "x": -1, "y": 0, "z": 0 },
-      "stubLength": 1.5,
+      "stubLength": 0.8,
       "boostSpeed": 0,
       "radius": 0.7
     }

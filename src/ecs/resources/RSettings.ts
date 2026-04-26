@@ -79,8 +79,8 @@ export class RSettings {
             DEFAULT_Z_VALUE_DESKTOP: 5,
             DRAWING_Z_VALUE_DESKTOP: 7,
 
-            DEFAULT_Z_VALUE_MOBILE: 8,
-            DRAWING_Z_VALUE_MOBILE: 10,
+            DEFAULT_Z_VALUE_MOBILE: 4,
+            DRAWING_Z_VALUE_MOBILE: 5,
         }
     }
 }

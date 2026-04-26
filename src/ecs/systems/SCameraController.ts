@@ -1,4 +1,3 @@
-import { Vector3 } from "three";
 import { CCart } from "../components/CCart";
 import { CPosition } from "../components/CTransform";
 import { System } from "../core/system";
@@ -15,25 +14,37 @@ export class SCameraController extends System {
         const input = world.getResource(RInput)!;
         const time = world.getResource(RTime)!;
         const settings = world.getResource(RSettings)!;
-        const cameraComp = world.getSingleton(CCamera)!;
         const window = world.getResource(RWindow)!;
-        const camera = cameraComp.cameraObject;
-
         const simulationState = world.getResource(RSimulationState)!;
+
+        let cameraComp: CCamera | null = null;
+        let cameraPosition: CPosition | null = null;
+
+        for (const [_entityId, foundCameraComp, foundCameraPosition] of world.query2(CCamera, CPosition)) {
+            cameraComp = foundCameraComp;
+            cameraPosition = foundCameraPosition;
+            break;
+        }
+
+        if (!cameraComp || !cameraPosition) return;
+
+
+        const cart = world.getComponent(cameraComp.targetId, CCart);
+        const cartPos = world.getComponent(cameraComp.targetId, CPosition)!;
 
         // target position is cart position. After will be the average cart position.
 
         let camera_z_draw = settings.camera.DRAWING_Z_VALUE_DESKTOP;
         let camera_z_default = settings.camera.DEFAULT_Z_VALUE_DESKTOP;
         let camera_pan_speed = settings.camera.PAN_SPEED;
-        let camera_zoom_speed = settings.camera.ZOOM_SPEED; 
+        let camera_zoom_speed = settings.camera.ZOOM_SPEED;
 
         if (window.width < 600) {
             camera_z_draw = settings.camera.DRAWING_Z_VALUE_MOBILE;
             camera_z_default = settings.camera.DEFAULT_Z_VALUE_MOBILE;
             camera_pan_speed = settings.camera.MOBILE_PAN_SPEED;
             camera_zoom_speed = settings.camera.MOBILE_ZOOM_SPEED;
-        } 
+        }
 
 
         if (simulationState.state == ESimulationState.DrawingTrack) {
@@ -43,8 +54,11 @@ export class SCameraController extends System {
             cameraComp.zoom = clamp(camera_z_draw + cameraComp.panOffset.z, cameraComp.min_zoom, cameraComp.max_zoom);
             cameraComp.panOffset.z = cameraComp.zoom - camera_z_draw;
 
-            const targetPos = new Vector3(0, 0, cameraComp.zoom);
-            const currentPos = camera.position.clone();
+
+            const targetPos = cartPos.previousPosition.clone().lerp(cartPos.position, time.interpolationAlpha);
+            targetPos.z = cameraComp.zoom; // set z to zoom level for drawing mode
+
+            const currentPos = cameraPosition.position.clone();
             const lerpFactor = 1 - Math.pow(0.005, dt); // smooth but frame-rate independent
             const hasTouchCameraInput = input.touches.size === 2;
             const hasPanInput = input.mmbDown || hasTouchCameraInput;
@@ -72,24 +86,27 @@ export class SCameraController extends System {
                 currentPos.lerp(targetPos, lerpFactor);
             }
 
-            camera.position.copy(currentPos);
+            cameraPosition.previousPosition.copy(currentPos);
+            cameraPosition.position.copy(currentPos);
+            cameraPosition.dirty = true;
             return;
         }
 
         cameraComp.panOffset.set(0, 0, 0); // reset pan when not in drawing mode
-        const cart = world.getComponent(cameraComp.targetId, CCart);
+
 
         if (cart) {
-            const pos = world.getComponent(cameraComp.targetId, CPosition)!;
-            const targetPos = pos.previousPosition.clone().lerp(pos.position, time.interpolationAlpha);
+            const targetPos = cartPos.previousPosition.clone().lerp(cartPos.position, time.interpolationAlpha);
 
             targetPos.z += camera_z_default; // offset back so we can see the cart
 
             // smooth follow
-            const currentPos = camera.position.clone();
+            const currentPos = cameraPosition.position.clone();
             const lerpFactor = 1 - Math.pow(0.001, dt); // smooth but frame-rate independent
             currentPos.lerp(targetPos, lerpFactor);
-            camera.position.copy(currentPos);
+            cameraPosition.previousPosition.copy(currentPos);
+            cameraPosition.position.copy(currentPos);
+            cameraPosition.dirty = true;
         }
     }
 }

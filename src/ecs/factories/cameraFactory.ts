@@ -1,4 +1,6 @@
 import { CCamera } from "../components/CCamera";
+import { CObject3D } from "../components/CObject3D";
+import { CPosition } from "../components/CTransform";
 import type { World } from "../core/world";
 import { RThree } from "../resources/RThree";
 
@@ -10,5 +12,7 @@ export function FCamera(world: World, targetId: number) {
 
     const cameraEntity = world.createEntity();
     world.addComponent(cameraEntity, new CCamera(targetId, camera));
+    world.addComponent(cameraEntity, new CPosition({ position: camera.position.clone() }));
+    world.addComponent(cameraEntity, new CObject3D(camera));
     return cameraEntity;
 }

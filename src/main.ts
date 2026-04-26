@@ -12,8 +12,16 @@ import { RWindow } from './ecs/resources/RWindow';
 import { RAssetManager } from './ecs/resources/RAssetManager';
 import { RInput } from './ecs/resources/RInput';
 import { RGrid } from './ecs/resources/RGrid';
+import { RTrackManager } from './ecs/resources/RTrackManager';
+import { RSimulationState } from './ecs/resources/RSimulationState';
+import { RRng } from './ecs/resources/RRng';
+import { RSettings } from './ecs/resources/RSettings';
+import { RRaycast } from './ecs/resources/RRaycast';
+import { RLevel } from './ecs/resources/RLevel';
+import { RUI } from './ecs/resources/RUI';
 
 //factories
+import { FCamera } from './ecs/factories/cameraFactory';
 
 //systems
 import { STransformSync } from './ecs/systems/STransformSync';
@@ -21,20 +29,16 @@ import { SInputReset } from './ecs/systems/SInputReset';
 import { SInputInit } from './ecs/systems/SInputInit';
 import { STime } from './ecs/systems/STime';
 import { SRender } from './ecs/systems/SRender';
-import { RRaycast } from './ecs/resources/RRaycast';
 import { SRaycastPlane } from './ecs/systems/SRaycastPlane';
 import { SDrawTrack } from './ecs/systems/SDrawTrack';
-import { RTrackManager } from './ecs/resources/RTrackManager';
 import { SCart } from './ecs/systems/SCart';
-import { RSimulationState } from './ecs/resources/RSimulationState';
 import { SUpdateSimulation } from './ecs/systems/SUpdateSimulation';
 import { SPassenger } from './ecs/systems/SPassenger';
 import { SCameraController } from './ecs/systems/SCameraController';
-import { FCamera } from './ecs/factories/cameraFactory';
-import { RRng } from './ecs/resources/RRng';
-import { RSettings } from './ecs/resources/RSettings';
-import { RLevel } from './ecs/resources/RLevel';
+
+//utils
 import { loadLevelDefinition, spawnLevel } from './ecs/utils/levelLoader';
+import { SUI } from './ecs/systems/SUI';
 
 const world = new World();
 const three = new RThree();
@@ -64,6 +68,7 @@ world.addResource(new RInput());
 world.addResource(new RRaycast());
 world.addResource(new RSimulationState());
 world.addResource(new RLevel());
+world.addResource(new RUI());
 
 //initialize entities
 const levelDefinition = await loadLevelDefinition('/levels/level-001.json');
@@ -74,13 +79,14 @@ FCamera(world, cartId);
 
 //systems
 world.addSystem(new SInputInit());
+world.addSystem(new SUI());
 world.addSystem(new SUpdateSimulation())
 world.addSystem(new SRaycastPlane());
 world.addSystem(new STime());
 world.addSystem(new SCart());
 world.addSystem(new SPassenger());
-world.addSystem(new STransformSync());
 world.addSystem(new SCameraController());
+world.addSystem(new STransformSync());
 world.addSystem(new SDrawTrack());
 world.addSystem(new SRender());
 world.addSystem(new SInputReset());
