@@ -1,5 +1,6 @@
-import type { Line, Vector3 } from "three";
+import type { Group, InstancedMesh, Mesh, Vector3 } from "three";
 import { Component } from "../core/component";
+import type { TrackVisualAnchor } from "../utils/trackRail";
 
 export type TrackRole = "player" | "stationStub"
 export type TrackPointLock = "free" | "protected"
@@ -9,15 +10,22 @@ export class CTrack extends Component {
     physicsPoints: Vector3[] = [];
     cumulativeLengths: number[] = [];
     trackLength: number = 0;
-    sampled: Vector3[] = []; // rendered directly from the deterministic rail
-    lineMesh: Line | null = null;
+    sampled: Vector3[] = []; // centerline samples used by editor/hit-testing
+    renderRoot: Group | null = null;
+    railMeshes: Mesh[] = [];
+    anchors: TrackVisualAnchor[] = [];
+    centerPieceInstances: InstancedMesh | null = null;
     trackRole: TrackRole = "player";
     stationId: string | null = null;
     immutable: boolean = false;
     pointLocks: TrackPointLock[] = [];
 
-    setLineMesh(line: Line) {
-        this.lineMesh = line;
+    setRenderRoot(renderRoot: Group) {
+        this.renderRoot = renderRoot;
+    }
+
+    setRailMeshes(railMeshes: Mesh[]) {
+        this.railMeshes = railMeshes;
     }
 
     setRawPoints(rawPoints: Vector3[], pointLocks?: TrackPointLock[]) {

@@ -10,6 +10,13 @@ export type TrackRailSample = {
     distanceAlongTrack: number
 }
 
+export type TrackVisualAnchor = {
+    point: Vector3
+    tangent: Vector3
+    perpendicular: Vector3
+    distanceAlongTrack: number
+}
+
 // Build a deterministic rail by smoothing the editable stroke locally.
 // Physics stays on that local path so distant edits do not rephase the whole track.
 export function buildTrackRail(rawPoints: Vector3[], spacing: number, smoothingPasses: number = 0) {
@@ -146,6 +153,87 @@ export function sampleTrackRailAtSegmentDistance(
         segmentT,
         distanceAlongTrack: startDistance + localDistance,
     }
+}
+
+export function sampleTrackVisualAnchors(
+    physicsPoints: Vector3[],
+    cumulativeLengths: number[],
+    trackLength: number,
+    spacing: number
+) {
+    if (physicsPoints.length === 0) return [] as TrackVisualAnchor[]
+
+    if (physicsPoints.length === 1 || trackLength <= TRACK_EPSILON) {
+        return [{
+            point: physicsPoints[0].clone(),
+            tangent: new Vector3(1, 0, 0),
+            perpendicular: new Vector3(0, 1, 0),
+            distanceAlongTrack: 0,
+        }]
+    }
+
+    const anchors: TrackVisualAnchor[] = []
+
+    const addAnchor = (distanceAlongTrack: number) => {
+        const sample = sampleTrackRailAtDistance(
+            physicsPoints,
+            cumulativeLengths,
+            trackLength,
+            distanceAlongTrack
+        )
+        if (!sample) return
+
+        const tangent = sample.tangent.clone()
+        const perpendicular = new Vector3(-tangent.y, tangent.x, 0)
+        if (perpendicular.lengthSq() <= TRACK_EPSILON) {
+            perpendicular.set(0, 1, 0)
+        } else {
+            perpendicular.normalize()
+        }
+
+        anchors.push({
+            point: sample.point,
+            tangent,
+            perpendicular,
+            distanceAlongTrack: sample.distanceAlongTrack,
+        })
+    }
+
+    const safeSpacing = Math.max(spacing, TRACK_EPSILON)
+    let distance = 0
+
+    while (distance < trackLength) {
+        addAnchor(distance)
+        distance += safeSpacing
+    }
+
+    if (anchors.length === 0 || anchors[anchors.length - 1].distanceAlongTrack < trackLength - TRACK_EPSILON) {
+        addAnchor(trackLength)
+    }
+
+    return anchors
+}
+
+export function buildOffsetRailPoints(
+    anchors: TrackVisualAnchor[],
+    lateralOffset: number,
+    verticalOffset: number
+) {
+    return anchors.map(anchor =>
+        anchor.point.clone()
+            .addScaledVector(anchor.perpendicular, lateralOffset)
+            .add(new Vector3(0, 0, verticalOffset))
+    )
+}
+
+export function measurePolylineLength(points: Vector3[]) {
+    let length = 0
+
+    for (let i = 1; i < points.length; i++) {
+        length += points[i].distanceTo(points[i - 1])
+    }
+
+    return length
 }
 
 function buildCumulativeLengths(points: Vector3[]) {

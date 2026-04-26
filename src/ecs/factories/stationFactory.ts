@@ -1,9 +1,7 @@
 import {
     BoxGeometry,
-    BufferGeometry,
     CircleGeometry,
     Group,
-    LineBasicMaterial,
     Mesh,
     MeshBasicMaterial,
     Vector3,
@@ -15,9 +13,8 @@ import { CPosition, CRotation } from "../components/CTransform";
 import type { World } from "../core/world";
 import { FTrack } from "./trackFactory";
 import { RThree } from "../resources/RThree";
-import { RSettings } from "../resources/RSettings";
-import { buildTrackRail } from "../utils/trackRail";
 import type { LevelStationDefinition } from "../resources/RLevel";
+import { rebuildTrackGeometry } from "../utils/trackVisuals";
 
 export function FStation(
     world: World,
@@ -26,7 +23,6 @@ export function FStation(
     const three = world.getResource(RThree)!;
     const stubTrackId = new FTrack().init(world);
     const stubTrack = world.getComponent(stubTrackId, CTrack)!;
-    const settings = world.getResource(RSettings)!;
 
     stubTrack.trackRole = "stationStub";
     stubTrack.stationId = definition.id;
@@ -35,12 +31,7 @@ export function FStation(
         createStationStubPoints(definition.position, definition.direction, definition.stubLength),
         ["protected", "protected"]
     );
-    rebuildTrackGeometry(stubTrack, settings.track.PHYSICS_POINT_SPACING, settings.track.RAIL_SMOOTHING_PASSES);
-
-    const lineMaterial = stubTrack.lineMesh?.material;
-    if (lineMaterial instanceof LineBasicMaterial) {
-        lineMaterial.color.setHex(definition.kind === "start" ? 0x2ecc71 : 0xf1c40f);
-    }
+    rebuildTrackGeometry(world, stubTrack);
 
     const group = new Group();
     const fill = new Mesh(
@@ -102,31 +93,4 @@ export function createStationStubPoints(
 
 function vectorFromDefinition(definition: { x: number, y: number, z?: number }) {
     return new Vector3(definition.x, definition.y, definition.z ?? 0);
-}
-
-function rebuildTrackGeometry(track: CTrack, physicsSpacing: number, smoothingPasses: number) {
-    if (track.rawPoints.length < 2) {
-        track.physicsPoints = [];
-        track.cumulativeLengths = [];
-        track.trackLength = 0;
-        track.sampled = [];
-
-        if (track.lineMesh) {
-            track.lineMesh.geometry.dispose();
-            track.lineMesh.geometry = new BufferGeometry();
-        }
-
-        return;
-    }
-
-    const rail = buildTrackRail(track.rawPoints, physicsSpacing, smoothingPasses);
-    track.physicsPoints = rail.physicsPoints;
-    track.cumulativeLengths = rail.cumulativeLengths;
-    track.trackLength = rail.trackLength;
-    track.sampled = rail.sampledPoints.map(point => point.clone());
-
-    if (track.lineMesh) {
-        track.lineMesh.geometry.dispose();
-        track.lineMesh.geometry = new BufferGeometry().setFromPoints(track.sampled);
-    }
 }

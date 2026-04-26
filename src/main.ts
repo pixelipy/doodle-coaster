@@ -19,6 +19,7 @@ import { RSettings } from './ecs/resources/RSettings';
 import { RRaycast } from './ecs/resources/RRaycast';
 import { RLevel } from './ecs/resources/RLevel';
 import { RUI } from './ecs/resources/RUI';
+import { RTrackProfiles } from './ecs/resources/RTrackProfiles';
 
 //factories
 import { FCamera } from './ecs/factories/cameraFactory';
@@ -38,6 +39,7 @@ import { SCameraController } from './ecs/systems/SCameraController';
 
 //utils
 import { loadLevelDefinition, spawnLevel } from './ecs/utils/levelLoader';
+import { loadRailProfileCollection } from './ecs/utils/railProfileLoader';
 import { SUI } from './ecs/systems/SUI';
 import { REvents } from './ecs/resources/REvents';
 
@@ -56,6 +58,9 @@ await assetManager.loadAll({
     }]
 });
 
+const trackProfiles = new RTrackProfiles();
+trackProfiles.loadCollection(await loadRailProfileCollection('/rail-profiles/profiles.json'));
+
 //Initilize Resources
 world.addResource(new REvents());
 world.addResource(new RSettings());
@@ -71,6 +76,7 @@ world.addResource(new RRaycast());
 world.addResource(new RSimulationState());
 world.addResource(new RLevel());
 world.addResource(new RUI());
+world.addResource(trackProfiles);
 
 //initialize entities
 const levelDefinition = await loadLevelDefinition('/levels/level-001.json');

@@ -1,0 +1,72 @@
+{
+  "activeProfileId": "classic",
+  "profiles": [
+    {
+      "id": "classic",
+      "name": "Classic",
+      "visualSampleSpacing": 0.12,
+      "tubeSegmentLength": 0.09,
+      "rails": [
+        {
+          "lateralOffset": 0,
+          "verticalOffset": 0.05,
+          "radius": 0.01,
+          "radialSegments": 8,
+          "materialKey": "yellow"
+        },
+        {
+          "lateralOffset": 0,
+          "verticalOffset": -0.05,
+          "radius": 0.01,
+          "radialSegments": 8,
+          "materialKey": "yellow"
+        },
+        {
+          "lateralOffset": -0.05,
+          "verticalOffset": 0,
+          "radius": 0.02,
+          "radialSegments": 8,
+          "materialKey": "red"
+        }
+      ],
+      "anchors": {
+        "spacing": 0.1
+      },
+      "centerPiece": {
+        "modelKey": null,
+        "scale": 1,
+        "orientationMode": "tangent"
+      }
+    },
+    {
+      "id": "heavy",
+      "name": "Heavy",
+      "visualSampleSpacing": 0.12,
+      "tubeSegmentLength": 0.18,
+      "rails": [
+        {
+          "lateralOffset": -0.19,
+          "verticalOffset": 0.04,
+          "radius": 0.045,
+          "radialSegments": 10,
+          "materialKey": "darkSteel"
+        },
+        {
+          "lateralOffset": 0.19,
+          "verticalOffset": 0.04,
+          "radius": 0.045,
+          "radialSegments": 10,
+          "materialKey": "darkSteel"
+        }
+      ],
+      "anchors": {
+        "spacing": 0.36
+      },
+      "centerPiece": {
+        "modelKey": null,
+        "scale": 1,
+        "orientationMode": "tangent"
+      }
+    }
+  ]
+}

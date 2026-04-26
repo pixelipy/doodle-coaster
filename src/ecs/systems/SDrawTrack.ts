@@ -1,4 +1,4 @@
-import { BufferGeometry, Vector3 } from "three"
+import { Vector3 } from "three"
 import { CObstacle } from "../components/CObstacle"
 import { System } from "../core/system"
 import { RInput } from "../resources/RInput"
@@ -8,17 +8,17 @@ import { RTrackManager } from "../resources/RTrackManager"
 import { World } from "../core/world"
 import { FTrack } from "../factories/trackFactory"
 import { ESimulationState, RSimulationState } from "../resources/RSimulationState"
-import { buildTrackRail } from "../utils/trackRail"
 import { RSettings } from "../resources/RSettings"
 import type { TrackPointLock } from "../components/CTrack"
 import { CPosition } from "../components/CTransform"
+import { RTrackProfiles } from "../resources/RTrackProfiles"
+import { rebuildAllTrackVisuals, rebuildTrackGeometry } from "../utils/trackVisuals"
 
 let MIN_DIST = 0.3
 let SNAP_DIST = 0.2
 let ERASE_RADIUS = 0.45
 let ALLOW_SELF_JOINS = false
-let PHYSICS_POINT_SPACING = 0.05
-let RAIL_SMOOTHING_PASSES = 2
+let LAST_APPLIED_PROFILE_VERSION = -1
 
 type RawPointRun = {
     points: Vector3[]
@@ -34,8 +34,7 @@ export class SDrawTrack extends System {
         SNAP_DIST = settings.SNAP_TO_POINT_DISTANCE
         ERASE_RADIUS = settings.ERASER_RADIUS
         ALLOW_SELF_JOINS = settings.ALLOW_SELF_JOINS
-        PHYSICS_POINT_SPACING = settings.PHYSICS_POINT_SPACING
-        RAIL_SMOOTHING_PASSES = settings.RAIL_SMOOTHING_PASSES
+        LAST_APPLIED_PROFILE_VERSION = world.getResource(RTrackProfiles)?.version ?? -1
     }
 
     update(world: World, _deltaTime: number): void {
@@ -43,6 +42,12 @@ export class SDrawTrack extends System {
         const drawing = world.getResource(RTrackManager)!
         const raycast = world.getResource(RRaycast)!
         const simulationState = world.getResource(RSimulationState)!
+        const trackProfiles = world.getResource(RTrackProfiles)
+
+        if (trackProfiles && trackProfiles.version !== LAST_APPLIED_PROFILE_VERSION) {
+            rebuildAllTrackVisuals(world)
+            LAST_APPLIED_PROFILE_VERSION = trackProfiles.version
+        }
 
         if (simulationState.state !== ESimulationState.DrawingTrack) return
 
@@ -99,7 +104,7 @@ export class SDrawTrack extends System {
         }
 
         if (dirty) {
-            rebuildTrackGeometry(track)
+            rebuildTrackGeometry(world, track)
         }
     }
 }
@@ -248,7 +253,7 @@ function eraseTrackAtPoint(
     }
 
     applyRawPoints(track, survivingRuns[0].points, survivingRuns[0].locks)
-    rebuildTrackGeometry(track)
+    rebuildTrackGeometry(world, track)
 
     for (let i = 1; i < survivingRuns.length; i++) {
         const newTrackId = new FTrack().init(world)
@@ -256,7 +261,7 @@ function eraseTrackAtPoint(
         if (!newTrack) continue
 
         applyRawPoints(newTrack, survivingRuns[i].points, survivingRuns[i].locks)
-        rebuildTrackGeometry(newTrack)
+        rebuildTrackGeometry(world, newTrack)
     }
 }
 
@@ -361,7 +366,7 @@ function mergeTracks(
         )
     }
 
-    rebuildTrackGeometry(primaryTrack)
+    rebuildTrackGeometry(world, primaryTrack)
     FTrack.destroy(world, secondaryTrackId)
     world.destroyEntity(secondaryTrackId)
 }
@@ -384,7 +389,7 @@ function closeTrackLoop(
         track.replaceRawPoint(track.rawPoints.length - 1, loopPoint)
     }
 
-    rebuildTrackGeometry(track)
+    rebuildTrackGeometry(world, track)
 }
 
 function splitRawPointRunsPreservingProtected(
@@ -423,34 +428,6 @@ function splitRawPointRunsPreservingProtected(
 
 function applyRawPoints(track: CTrack, rawPoints: Vector3[], pointLocks?: TrackPointLock[]) {
     track.setRawPoints(rawPoints, pointLocks)
-}
-
-function rebuildTrackGeometry(track: CTrack) {
-    if (track.rawPoints.length < 2) {
-        track.physicsPoints = []
-        track.cumulativeLengths = []
-        track.trackLength = 0
-        track.sampled = []
-
-        if (track.lineMesh) {
-            track.lineMesh.geometry.dispose()
-            track.lineMesh.geometry = new BufferGeometry()
-        }
-
-        return
-    }
-
-    // Physics follows the local smoothed rail, while the rendered line can stay uniformly sampled.
-    const rail = buildTrackRail(track.rawPoints, PHYSICS_POINT_SPACING, RAIL_SMOOTHING_PASSES)
-    track.physicsPoints = rail.physicsPoints
-    track.cumulativeLengths = rail.cumulativeLengths
-    track.trackLength = rail.trackLength
-    track.sampled = rail.sampledPoints.map(point => point.clone())
-
-    if (track.lineMesh) {
-        track.lineMesh.geometry.dispose()
-        track.lineMesh.geometry = new BufferGeometry().setFromPoints(track.sampled)
-    }
 }
 
 
@@ -563,7 +540,7 @@ function snapTrackToExistingEndpoint(
         track.replaceRawPoint(track.rawPoints.length - 1, targetPoint)
     }
 
-    rebuildTrackGeometry(track)
+    rebuildTrackGeometry(world, track)
 }
 
 function cloneTrackData(track: CTrack) {
