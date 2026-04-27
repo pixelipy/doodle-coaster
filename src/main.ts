@@ -20,6 +20,7 @@ import { RRaycast } from './ecs/resources/RRaycast';
 import { RLevel } from './ecs/resources/RLevel';
 import { RUI } from './ecs/resources/RUI';
 import { RTrackProfiles } from './ecs/resources/RTrackProfiles';
+import { RTrackVisualCache } from './ecs/resources/RTrackVisualCache';
 
 //factories
 import { FCamera } from './ecs/factories/cameraFactory';
@@ -87,6 +88,7 @@ world.addResource(new RSimulationState());
 world.addResource(new RLevel());
 world.addResource(new RUI());
 world.addResource(trackProfiles);
+world.addResource(new RTrackVisualCache());
 
 //initialize entities
 const levelDefinition = await loadLevelDefinition('/levels/level-001.json');

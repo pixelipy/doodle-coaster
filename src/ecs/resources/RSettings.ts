@@ -32,6 +32,9 @@ export class RSettings {
         MAX_SPEED: number,
         ATTACH_DIST: number,
         REATTACH_COOLDOWN: number,
+        ANGULAR_VELOCITY_BUILD_RATE: number,
+        ANGULAR_VELOCITY_DECAY_RATE: number,
+        MAX_ANGULAR_VELOCITY: number,
     }
 
     passenger: {
@@ -63,6 +66,9 @@ export class RSettings {
             MAX_SPEED: 7,
             ATTACH_DIST: 0.2,
             REATTACH_COOLDOWN: 0.3,
+            ANGULAR_VELOCITY_BUILD_RATE: 90,
+            ANGULAR_VELOCITY_DECAY_RATE: 8,
+            MAX_ANGULAR_VELOCITY: 18,
         }
 
         this.passenger = {

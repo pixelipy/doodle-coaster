@@ -17,6 +17,9 @@ let GRAVITY = 3
 let ATTACH_DIST = 0.2
 let REATTACH_COOLDOWN = 0.3
 let MAX_SPEED = 7
+let ANGULAR_VELOCITY_BUILD_RATE = 90
+let ANGULAR_VELOCITY_DECAY_RATE = 8
+let MAX_ANGULAR_VELOCITY = 18
 
 const ROTATION_EPSILON = 0.0001
 const ATTACH_EPSILON = 1e-6
@@ -45,6 +48,9 @@ export class SCart extends System {
         ATTACH_DIST = settings.cart.ATTACH_DIST
         REATTACH_COOLDOWN = settings.cart.REATTACH_COOLDOWN
         MAX_SPEED = settings.cart.MAX_SPEED
+        ANGULAR_VELOCITY_BUILD_RATE = settings.cart.ANGULAR_VELOCITY_BUILD_RATE
+        ANGULAR_VELOCITY_DECAY_RATE = settings.cart.ANGULAR_VELOCITY_DECAY_RATE
+        MAX_ANGULAR_VELOCITY = settings.cart.MAX_ANGULAR_VELOCITY
     }
 
     private normalizeAtAngle(angle: number) {
@@ -84,19 +90,74 @@ export class SCart extends System {
     private resolveAngularVelocityFromAngles(
         currentVisualAngle: number | null,
         nextVisualAngle: number | null,
-        dt: number,
-        fallbackAngularVelocity: number
+        dt: number
     ) {
         if (currentVisualAngle == null || nextVisualAngle == null || dt <= 0) {
-            return fallbackAngularVelocity
+            return 0
         }
 
         const angularVelocity = this.normalizeAtAngle(nextVisualAngle - currentVisualAngle) / dt
         if (Math.abs(angularVelocity) <= ANGULAR_VELOCITY_EPSILON) {
-            return fallbackAngularVelocity
+            return 0
         }
 
         return angularVelocity
+    }
+
+    private clampAngularVelocity(angularVelocity: number) {
+        return Math.max(-MAX_ANGULAR_VELOCITY, Math.min(MAX_ANGULAR_VELOCITY, angularVelocity))
+    }
+
+    private moveToward(current: number, target: number, maxDelta: number) {
+        if (current < target) return Math.min(current + maxDelta, target)
+        if (current > target) return Math.max(current - maxDelta, target)
+        return current
+    }
+
+    private chooseAngularVelocityTarget(curvatureAngularVelocity: number, measuredAngularVelocity: number) {
+        return Math.abs(measuredAngularVelocity) > Math.abs(curvatureAngularVelocity)
+            ? measuredAngularVelocity
+            : curvatureAngularVelocity
+    }
+
+    private advanceAccumulatedAngularVelocity(
+        currentAngularVelocity: number,
+        targetAngularVelocity: number,
+        dt: number
+    ) {
+        const clampedCurrent = this.clampAngularVelocity(currentAngularVelocity)
+        const clampedTarget = this.clampAngularVelocity(targetAngularVelocity)
+        if (dt <= 0) return clampedCurrent
+
+        const maxDelta = Math.abs(clampedTarget) > ANGULAR_VELOCITY_EPSILON
+            ? ANGULAR_VELOCITY_BUILD_RATE * dt
+            : ANGULAR_VELOCITY_DECAY_RATE * dt
+        const nextAngularVelocity = Math.abs(clampedTarget) > ANGULAR_VELOCITY_EPSILON
+            ? this.moveToward(clampedCurrent, clampedTarget, maxDelta)
+            : this.moveToward(clampedCurrent, 0, maxDelta)
+
+        if (Math.abs(nextAngularVelocity) <= ANGULAR_VELOCITY_EPSILON) {
+            return 0
+        }
+
+        return this.clampAngularVelocity(nextAngularVelocity)
+    }
+
+    private resolveTrackSpinTarget(
+        track: CTrack,
+        distanceAlongTrack: number,
+        speed: number,
+        referenceAngle: number,
+        measuredAngularVelocity: number = 0
+    ) {
+        const curvatureAngularVelocity = this.estimateTrackAngularVelocity(
+            track,
+            distanceAlongTrack,
+            speed,
+            referenceAngle
+        )
+
+        return this.chooseAngularVelocityTarget(curvatureAngularVelocity, measuredAngularVelocity)
     }
 
     private sampleTrackDirection(
@@ -311,17 +372,22 @@ export class SCart extends System {
 
         if (nextVisualAngle == null) return false
 
-        const curvatureAngularVelocity = this.estimateTrackAngularVelocity(
+        const measuredAngularVelocity = this.resolveAngularVelocityFromAngles(
+            resolvedCurrentVisualAngle,
+            nextVisualAngle,
+            dt
+        )
+        const targetAngularVelocity = this.resolveTrackSpinTarget(
             track,
             cart.distanceAlongTrack,
             cart.speed,
-            nextVisualAngle
-        )
-        cart.angularVelocity = this.resolveAngularVelocityFromAngles(
-            resolvedCurrentVisualAngle,
             nextVisualAngle,
-            dt,
-            curvatureAngularVelocity
+            measuredAngularVelocity
+        )
+        cart.angularVelocity = this.advanceAccumulatedAngularVelocity(
+            cart.angularVelocity,
+            targetAngularVelocity,
+            dt
         )
         cart.prevTrackAngle = nextVisualAngle
 
@@ -473,20 +539,23 @@ export class SCart extends System {
         const currentVisualAngle = this.resolveVisualAngle(vel.velocity, currentReferenceAngle)
         const releaseReferenceAngle = currentVisualAngle ?? currentReferenceAngle
         const releaseVisualAngle = this.resolveVisualAngle(releaseVelocity, releaseReferenceAngle)
-        const releaseAngularVelocity = this.estimateTrackAngularVelocity(
+        const measuredReleaseAngularVelocity = this.resolveAngularVelocityFromAngles(
+            currentVisualAngle,
+            releaseVisualAngle,
+            dt
+        )
+        const releaseAngularVelocity = this.resolveTrackSpinTarget(
             track,
             releaseDistance,
             cart.speed,
-            releaseVisualAngle ?? currentReferenceAngle
+            releaseVisualAngle ?? currentReferenceAngle,
+            measuredReleaseAngularVelocity
         )
 
-        cart.angularVelocity = this.resolveAngularVelocityFromAngles(
-            currentVisualAngle,
-            releaseVisualAngle,
+        cart.angularVelocity = this.advanceAccumulatedAngularVelocity(
+            cart.angularVelocity,
+            releaseAngularVelocity,
             dt,
-            Math.abs(releaseAngularVelocity) > ANGULAR_VELOCITY_EPSILON
-                ? releaseAngularVelocity
-                : cart.angularVelocity
         )
 
         if (releaseVisualAngle != null) {
@@ -679,12 +748,12 @@ export class SCart extends System {
             const visualAngle = this.closestVisualAngle(angle, referenceAngle)
 
             cart.prevTrackAngle = visualAngle
-            cart.angularVelocity = this.estimateTrackAngularVelocity(
+            cart.angularVelocity = this.clampAngularVelocity(this.resolveTrackSpinTarget(
                 bestCandidate.track,
                 cart.distanceAlongTrack,
                 cart.speed,
                 visualAngle
-            )
+            ))
             if (rotation) {
                 this.setRotationAngle(rotation, visualAngle)
                 rotation.previousRotation.copy(rotation.rotation)

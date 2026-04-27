@@ -1,6 +1,6 @@
 //class to setup a three.js scene, camera, and renderer
 
-import { WebGLRenderer, Scene, PerspectiveCamera, DirectionalLight, AmbientLight } from "three";
+import { WebGLRenderer, Scene, PerspectiveCamera, DirectionalLight, AmbientLight, Color } from "three";
 
 export class RThree{
     scene: Scene
@@ -12,14 +12,9 @@ export class RThree{
         this.renderer = new WebGLRenderer({antialias: true, canvas: document.getElementById("game") as HTMLCanvasElement});
         this.camera = new PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
         this.camera.position.z = 5
-    
-        const ambientLight = new AmbientLight(0xffffff, 0.6);
-        this.scene.add(ambientLight);
 
-        const directionalLight = new DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(10, 20, 10);
-        this.scene.add(directionalLight);
-    
-    
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        this.scene.background = new Color(0x1D2B53); // Dark blue background
     }
 }

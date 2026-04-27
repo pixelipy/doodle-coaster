@@ -12,6 +12,7 @@ export type RailAnchorDefinition = {
 
 export type RailCenterPieceDefinition = {
     modelKey: string | null
+    color?: string
     scale: number
     orientationMode: "tangent"
 }
