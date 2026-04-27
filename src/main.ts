@@ -55,7 +55,17 @@ await assetManager.loadAll({
     models: [{
         key: 'player',
         url: '/assets/models/animals/animal-cow.glb'
-    }]
+    },
+    {
+        key: 'separator-classic',
+        url: '/assets/models/rail-separators/classic.glb'
+    }
+    ], textures: [
+        {
+            key: 'gradientMap',
+            url: '/assets/textures/gradientMap.png'
+        }
+    ]
 });
 
 const trackProfiles = new RTrackProfiles();
