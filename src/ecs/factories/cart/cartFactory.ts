@@ -1,4 +1,4 @@
-import { BoxGeometry, Mesh, MeshNormalMaterial, Object3D } from "three";
+import {  Mesh, Object3D } from "three";
 import type { World } from "../../core/world";
 import { RThree } from "../../resources/RThree";
 import { CCart } from "../../components/CCart";
@@ -7,8 +7,6 @@ import { CVelocity } from "../../components/CVelocity";
 import { CObject3D } from "../../components/CObject3D";
 import { RAssetManager } from "../../resources/RAssetManager";
 import { GradientLitMaterial } from "../../../materials/GradientLitMaterial";
-import { GradientLitSpecularMaterial } from "../../../materials/GradientLitSpecularMaterial";
-
 
 export function FCart(world: World): number {
 

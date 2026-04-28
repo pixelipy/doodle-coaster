@@ -1,6 +1,5 @@
 import {
     BoxGeometry,
-    CircleGeometry,
     Group,
     Mesh,
     MeshBasicMaterial,

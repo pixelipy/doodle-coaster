@@ -3,7 +3,6 @@ import {
   LoadingManager,
   NoColorSpace,
   Object3D,
-  SRGBColorSpace,
   TextureLoader,
   type Texture
 } from "three"
