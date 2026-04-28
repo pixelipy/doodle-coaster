@@ -8,10 +8,12 @@
     - Make the car able to jump. mechanic of the first levels
     - Later, that same input will make the wheels go up and down for obstacles. This will be a LEVEL mechanic. just like temple run duck
     - Later, maybe the passengers jump instead to collect coins and survive til the end
-    - Maybe there's a level where we see the cart from behind, and have to go left and right instead!! Literally subway surfers.
+    - Maybe there's a level where we see the cart from behind, and have to go left and right instead!! Literally subway surfers. - maybe too much work
     - Car with a hook mechanic!
     - Car with a honk mechanic?? For example, honk to make pidgeons fly and not crash on them?
     - Car with a booster mechanic to go fast.
+    - Car with parachute? - with wind mechanics from below??
+    - Car with rotational jump? like the knife game
 - Make the cart be able to crash
 - Add boost stations placement
 - Add collectable for player
