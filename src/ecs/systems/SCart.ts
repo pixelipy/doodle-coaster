@@ -12,6 +12,7 @@ import { Vector3 } from "three"
 import { sampleTrackRailAtDistance, sampleTrackRailAtSegmentDistance } from "../utils/trackRail"
 import { findConnectedTrackEndpoint } from "../utils/trackEndpoints"
 import { RSettings } from "../resources/RSettings"
+import { RInput } from "../resources/RInput"
 
 let GRAVITY = 3
 let ATTACH_DIST = 0.2
@@ -283,6 +284,8 @@ export class SCart extends System {
         dt: number,
         rotation?: CRotation
     ) {
+        const input = world.getResource(RInput)!
+
         const track = world.getComponent(cart.trackId!, CTrack)
         if (!track || track.physicsPoints.length < 2) return
 
@@ -302,6 +305,20 @@ export class SCart extends System {
         if (track.trackRole !== "stationStub") {
             cart.lastBoostStationId = null
         }
+
+        //car jump!
+        const level = world.getResource(RLevel)
+        if (level && level.enabledAbilities.includes("jump")) {
+            // Implement jump logic here
+            if (input.keysDown.has(" ")){
+                //detach immediatelly and jump with current speed + boost
+            }
+
+            if (input.keysReleased.has(" ")){
+                // Implement logic for when the jump key is released
+            }
+        }
+
 
         cart.speed += -GRAVITY * tangent.y * dt
         cart.speed = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, cart.speed))

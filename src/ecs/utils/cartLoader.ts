@@ -39,6 +39,7 @@ type CartDefinition = {
     description: string,
     scale: number,
     parts: CartPartDefinition[],
+    passengerPose: string
 }
 
 export async function loadCart(path: string, id: string): Promise<CartDefinition> {

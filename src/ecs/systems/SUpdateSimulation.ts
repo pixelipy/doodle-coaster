@@ -12,9 +12,9 @@ export class SUpdateSimulation extends System {
         //updates simulation state on key pressed
         const input = world.getResource(RInput)!;
 
-        if (input.keysPressed.has(" ")) {
-            SUpdateSimulation.playPause(world);
-        }
+        //if (input.keysPressed.has(" ")) {
+            //SUpdateSimulation.playPause(world);
+        //}
 
         if (input.keysPressed.has("d")) {
             SUpdateSimulation.drawModeChange(world, "draw");

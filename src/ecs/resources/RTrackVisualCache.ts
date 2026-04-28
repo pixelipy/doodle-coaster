@@ -4,10 +4,10 @@ import {
     Vector3,
     type Material,
 } from "three";
-import { GradientLitMaterial } from "../../materials/GradientLitMaterial";
 import { PipeMaterial } from "../../materials/PipeMaterial";
 import { RAssetManager } from "./RAssetManager";
 import type { RailProfileDefinition } from "./RTrackProfiles";
+import { GradientUnlitMaterial } from "../../materials/GradientUnlitMaterial";
 
 type CenterPieceAssets = {
     geometry: BufferGeometry
@@ -90,7 +90,7 @@ function buildCenterPieceAssets(
 
     return {
         geometry,
-        material: new GradientLitMaterial({
+        material: new GradientUnlitMaterial({
             map: assetManager.getTexture("gradientMap"),
             color: profile.centerPiece.color ?? "#ffffff"
         }),

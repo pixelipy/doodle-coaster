@@ -1,0 +1,53 @@
+{
+    "activePassengerId": "passenger-classic",
+    "passengers": [
+        {
+            "id": "passenger-classic",
+            "description": "The classic passenger model, featuring a simple design and vibrant colors.",
+            "name": "Classic Passenger",
+            "thumbnail": "passenger1.png",
+            "scale": 0.14,
+            "colors": [
+                "#cccccc",
+                "#00ff00",
+                "#0000ff",
+                "#ffff00",
+                "#ff00ff",
+                "#00ffff"
+            ],
+            "activeColorId": 0
+        },
+        {
+            "id": "passenger-2",
+            "description": "The second passenger model, featuring a unique design and color scheme.",
+            "name": "Passenger2",
+            "thumbnail": "passenger2.png",
+            "scale": 0.14,
+            "colors": [
+                "#cccccc",
+                "#00ff00",
+                "#0000ff",
+                "#ffff00",
+                "#ff00ff",
+                "#00ffff"
+            ],
+            "activeColorId": 0
+        },
+        {
+            "id": "passenger-3",
+            "description": "The third passenger model, featuring a distinct design and vibrant colors.",
+            "name": "Passenger3",
+            "thumbnail": "passenger3.png",
+            "scale": 0.14,
+            "colors": [
+                "#cccccc",
+                "#00ff00",
+                "#0000ff",
+                "#ffff00",
+                "#ff00ff",
+                "#00ffff"
+            ],
+            "activeColorId": 0
+        }
+    ]
+}

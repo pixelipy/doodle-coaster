@@ -32,7 +32,8 @@ export type LevelDefinition = {
     cartSpawnStationId: string
     stations: LevelStationDefinition[]
     obstacles: LevelObstacleDefinition[]
-    bounds: LevelBoundsDefinition
+    bounds: LevelBoundsDefinition,
+    enabledAbilities: string[]
 }
 
 export class RLevel {
@@ -40,6 +41,7 @@ export class RLevel {
     definition: LevelDefinition | null = null
     completed: boolean = false
     cartId: number | null = null
+    enabledAbilities: string[] = []
 
     stationEntities = new Map<string, number>()
     stationStubTracks = new Map<string, number>()
@@ -61,5 +63,6 @@ export class RLevel {
         this.stationStubTracks.clear()
         this.obstacleEntities.clear()
         this.bounds = definition.bounds
+        this.enabledAbilities = definition.enabledAbilities || []
     }
 }

@@ -1,6 +1,7 @@
 {
   "id": "level-001",
   "cartSpawnStationId": "start-a",
+  "enabledAbilities": ["jump"],
   "bounds": {
     "minX": -5,
     "maxX": 5,

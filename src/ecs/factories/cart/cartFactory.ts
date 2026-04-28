@@ -6,9 +6,9 @@ import { CPosition, CRotation } from "../../components/CTransform";
 import { CVelocity } from "../../components/CVelocity";
 import { CObject3D } from "../../components/CObject3D";
 import { RAssetManager } from "../../resources/RAssetManager";
-import { GradientLitMaterial } from "../../../materials/GradientLitMaterial";
 import { loadCart } from "../../utils/cartLoader";
 import { FPassenger } from "../passengerFactory";
+import { GradientUnlitMaterial } from "../../../materials/GradientUnlitMaterial";
 
 export async function FCart(world: World, spawnConfig: { position?: Vector3, rotationZ?: number } = {}): Promise<number> {
 
@@ -26,7 +26,7 @@ export async function FCart(world: World, spawnConfig: { position?: Vector3, rot
         if (child instanceof Mesh) {
             cartDefinition.parts.forEach(part => {
                 if (child.isMesh && child.name === part.id) {
-                    child.material = new GradientLitMaterial(
+                    child.material = new GradientUnlitMaterial(
                         {
                             map: assets.getTexture('gradientMap'),
                             color: part.colors[part.currentActiveColor] || "#FFFFFF",
@@ -72,9 +72,9 @@ export async function FCart(world: World, spawnConfig: { position?: Vector3, rot
 
     // spawn passengers
 
-    passengers.forEach((position) => {
-        FPassenger(world, cartObj.object3D, position)
-    })
+    for (const position of passengers) {
+        await FPassenger(world, cartObj.object3D, position, cartDefinition.passengerPose);
+    }
 
     return cartId;
 }

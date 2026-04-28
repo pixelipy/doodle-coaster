@@ -5,6 +5,7 @@
             "id": "cart-classic",
             "description": "The classic cart. A good all-rounder.",
             "scale": 0.14,
+            "passengerPose": "sit",
             "parts": [
                 {
                     "id": "cart_classic_body",

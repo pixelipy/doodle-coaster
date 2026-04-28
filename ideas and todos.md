@@ -1,9 +1,9 @@
 # Todo Tomorrow:
 
-- Make first passenger model
-- Make the passenger loader json and ts
-- Pose it in the cart. the pose the passenger is should be decided by the cart
-- For example, the skate cart will have all passengers standing!
+- Make first passenger model OK
+- Make the passenger loader json and ts OK
+- Pose it in the cart. the pose the passenger is should be decided by the cart OK
+- For example, the skate cart will have all passengers standing! OK
 - Car abilities:
     - Make the car able to jump. mechanic of the first levels
     - Later, that same input will make the wheels go up and down for obstacles. This will be a LEVEL mechanic. just like temple run duck
