@@ -1,4 +1,5 @@
 import {
+  AnimationClip,
   LinearFilter,
   LoadingManager,
   NoColorSpace,
@@ -7,7 +8,7 @@ import {
   type Texture
 } from "three"
 
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
+import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js"
 import { SkeletonUtils } from "three/examples/jsm/Addons.js"
 
 type ModelEntry = {
@@ -20,13 +21,17 @@ type TextureEntry = {
   url: string
 }
 
+export type AnimatedObject3D = Object3D & {
+  animations: AnimationClip[]
+}
+
 export class RAssetManager {
   private manager: LoadingManager
 
   private gltfLoader: GLTFLoader
   private textureLoader: TextureLoader
 
-  private models = new Map<string, Object3D>()
+  private models = new Map<string, GLTF>()
   private textures = new Map<string, Texture>()
 
   constructor() {
@@ -94,7 +99,7 @@ export class RAssetManager {
       this.gltfLoader.load(url, resolve, undefined, reject)
     })
 
-    this.models.set(key, gltf.scene)
+    this.models.set(key, gltf)
   }
 
   private async loadTexture(key: string, url: string) {
@@ -117,11 +122,14 @@ export class RAssetManager {
   // GETTERS
   // =====================
 
-  getModel(key: string): Object3D {
+  getModel(key: string): AnimatedObject3D {
     const original = this.models.get(key)
     if (!original) throw new Error(`Model not loaded: ${key}`)
 
-    return SkeletonUtils.clone(original)
+    const model = SkeletonUtils.clone(original.scene) as AnimatedObject3D
+    model.animations = [...original.animations]
+
+    return model
   }
 
   getTexture(key: string): Texture {

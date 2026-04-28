@@ -15,6 +15,9 @@ export class GradientLitMaterial extends THREE.ShaderMaterial {
             },
 
             vertexShader: `
+                #include <common>
+                #include <skinning_pars_vertex>
+
                 varying vec2 vUv;
                 varying vec3 vNormal;
 
@@ -22,15 +25,25 @@ export class GradientLitMaterial extends THREE.ShaderMaterial {
 
                     vUv = uv;
 
-                    vec3 transformed = position;
-                    vec3 transformedNormal = normal;
+                    #include <beginnormal_vertex>
+                    #include <morphnormal_vertex>
+                    #include <skinbase_vertex>
+                    #include <skinnormal_vertex>
+                    #include <defaultnormal_vertex>
 
                     #ifdef USE_INSTANCING
-                        transformed = (instanceMatrix * vec4(position, 1.0)).xyz;
-                        transformedNormal = mat3(instanceMatrix) * normal;
+                        transformedNormal = mat3(instanceMatrix) * transformedNormal;
                     #endif
 
                     vNormal = normalize(normalMatrix * transformedNormal);
+
+                    #include <begin_vertex>
+                    #include <morphtarget_vertex>
+                    #include <skinning_vertex>
+
+                    #ifdef USE_INSTANCING
+                        transformed = (instanceMatrix * vec4(transformed, 1.0)).xyz;
+                    #endif
 
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
                 }
@@ -61,5 +74,6 @@ export class GradientLitMaterial extends THREE.ShaderMaterial {
             transparent: false
         });
 
+        (this as unknown as { skinning: boolean }).skinning = true;
     }
 }
