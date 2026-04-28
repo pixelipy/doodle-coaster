@@ -1,6 +1,9 @@
 import {
+  LinearFilter,
   LoadingManager,
+  NoColorSpace,
   Object3D,
+  SRGBColorSpace,
   TextureLoader,
   type Texture
 } from "three"
@@ -101,6 +104,12 @@ export class RAssetManager {
     const texture = await new Promise<Texture>((resolve, reject) => {
       this.textureLoader.load(url, resolve, undefined, reject)
     })
+
+    texture.colorSpace = NoColorSpace;
+    texture.magFilter = LinearFilter;
+    texture.minFilter = LinearFilter;
+    texture.generateMipmaps = false;
+    texture.anisotropy = 8;
 
     this.textures.set(key, texture)
   }

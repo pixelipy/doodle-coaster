@@ -1,6 +1,6 @@
 //class to setup a three.js scene, camera, and renderer
 
-import { WebGLRenderer, Scene, PerspectiveCamera, DirectionalLight, AmbientLight, Color } from "three";
+import { WebGLRenderer, Scene, PerspectiveCamera, Color, ACESFilmicToneMapping } from "three";
 
 export class RThree{
     scene: Scene
@@ -14,6 +14,8 @@ export class RThree{
         this.camera.position.z = 5
 
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.toneMapping = ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.5;
 
         this.scene.background = new Color(0x1D2B53); // Dark blue background
     }

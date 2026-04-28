@@ -80,9 +80,12 @@ export function rebuildTrackGeometry(world: World, track: CTrack) {
     const railMeshes: Mesh[] = []
 
     for (const railDefinition of activeProfile.rails) {
+        const lateralOffset = track.invertRailProfile
+            ? -railDefinition.lateralOffset
+            : railDefinition.lateralOffset
         const railPoints = buildOffsetRailPoints(
             visualAnchors,
-            railDefinition.lateralOffset,
+            lateralOffset,
             railDefinition.verticalOffset
         )
         if (railPoints.length < 2) continue

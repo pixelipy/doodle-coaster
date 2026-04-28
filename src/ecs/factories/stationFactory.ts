@@ -26,6 +26,7 @@ export function FStation(
 
     stubTrack.trackRole = "stationStub";
     stubTrack.stationId = definition.id;
+    stubTrack.invertRailProfile = definition.kind === "goal";
     stubTrack.immutable = true;
     stubTrack.setRawPoints(
         createStationStubPoints(definition.position, definition.direction, definition.stubLength),
@@ -34,23 +35,21 @@ export function FStation(
     rebuildTrackGeometry(world, stubTrack);
 
     const group = new Group();
-    const fill = new Mesh(
-        new CircleGeometry(definition.radius, 32),
-        new MeshBasicMaterial({
-            color: definition.kind === "start" ? 0x1f7a3d : 0xb5880d,
-            transparent: true,
-            opacity: 0.65,
-        })
-    );
-    fill.position.z = 0.01;
-    group.add(fill);
+    const visualGroup = new Group();
+    group.add(visualGroup);
 
     const indicator = new Mesh(
         new BoxGeometry(definition.radius * 0.8, definition.radius * 0.18, 0.08),
-        new MeshBasicMaterial({ color: 0xffffff })
+        new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 })
     );
     indicator.position.set(definition.radius * 0.35, 0, 0.03);
-    group.add(indicator);
+    visualGroup.add(indicator);
+
+    if (definition.kind === "goal") {
+        // Keep goal station art upright without changing the stub track direction used by gameplay.
+        visualGroup.rotation.z = Math.PI;
+    }
+
     three.scene.add(group);
 
     const stationEntityId = world.createEntity();

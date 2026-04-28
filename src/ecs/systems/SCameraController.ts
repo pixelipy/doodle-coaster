@@ -9,7 +9,9 @@ import { RTime } from "../resources/RTime";
 import { RSettings } from "../resources/RSettings";
 import { RWindow } from "../resources/RWindow";
 import { RLevel, type LevelBoundsDefinition } from "../resources/RLevel";
-import type { Vector3 } from "three";
+import { Quaternion, type Vector3 } from "three";
+
+const DRAW_MODE_QUATERNION = new Quaternion();
 
 export class SCameraController extends System {
     update(world: World, dt: number): void {
@@ -34,6 +36,7 @@ export class SCameraController extends System {
 
         const cart = world.getComponent(cameraComp.targetId, CCart);
         const cartPos = world.getComponent(cameraComp.targetId, CPosition)!;
+        const interpolatedCartPos = cartPos.previousPosition.clone().lerp(cartPos.position, time.interpolationAlpha);
 
         // target position is cart position. After will be the average cart position.
 
@@ -43,6 +46,7 @@ export class SCameraController extends System {
         let camera_zoom_speed = settings.camera.ZOOM_SPEED;
         let min_zoom = settings.camera.MIN_ZOOM_DESKTOP;
         let max_zoom = settings.camera.MAX_ZOOM_DESKTOP;
+        let camera_default_x = settings.camera.DEFAULT_X_VALUE_DESKTOP;
 
         if (window.width < 600) {
             camera_z_draw = settings.camera.DRAWING_Z_VALUE_MOBILE;
@@ -51,6 +55,7 @@ export class SCameraController extends System {
             camera_zoom_speed = settings.camera.MOBILE_ZOOM_SPEED;
             min_zoom = settings.camera.MIN_ZOOM_MOBILE;
             max_zoom = settings.camera.MAX_ZOOM_MOBILE;
+            camera_default_x = settings.camera.DEFAULT_X_VALUE_MOBILE;
         }
 
 
@@ -62,7 +67,7 @@ export class SCameraController extends System {
             cameraComp.panOffset.z = cameraComp.zoom - camera_z_draw;
 
 
-            const followTarget = cartPos.previousPosition.clone().lerp(cartPos.position, time.interpolationAlpha);
+            const followTarget = interpolatedCartPos.clone();
             const targetPos = followTarget.clone();
             targetPos.z = cameraComp.zoom; // set z to zoom level for drawing mode
 
@@ -98,6 +103,7 @@ export class SCameraController extends System {
                 currentPos.lerp(targetPos, lerpFactor);
             }
 
+            cameraComp.cameraObject.quaternion.slerp(DRAW_MODE_QUATERNION, lerpFactor);
             cameraPosition.previousPosition.copy(currentPos);
             cameraPosition.position.copy(currentPos);
             cameraPosition.dirty = true;
@@ -108,14 +114,15 @@ export class SCameraController extends System {
 
 
         if (cart) {
-            const targetPos = cartPos.previousPosition.clone().lerp(cartPos.position, time.interpolationAlpha);
+            const targetPos = interpolatedCartPos.clone();
 
             targetPos.z += camera_z_default; // offset back so we can see the cart
-
+            targetPos.x += camera_default_x; // offset forward so cart is not in center of screen, but more towards bottom where the track is
             // smooth follow
             const currentPos = cameraPosition.position.clone();
-            const lerpFactor = 1 - Math.pow(0.001, dt); // smooth but frame-rate independent
-            currentPos.lerp(targetPos, lerpFactor);
+            //const lerpFactor = 1 - Math.pow(0.3, dt); // smooth but frame-rate independent
+            currentPos.lerp(targetPos, 1);
+            cameraComp.cameraObject.lookAt(interpolatedCartPos); // keep orientation on the same interpolated timestep as the camera follow
             cameraPosition.previousPosition.copy(currentPos);
             cameraPosition.position.copy(currentPos);
             cameraPosition.dirty = true;

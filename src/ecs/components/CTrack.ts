@@ -17,6 +17,7 @@ export class CTrack extends Component {
     centerPieceInstances: InstancedMesh | null = null;
     trackRole: TrackRole = "player";
     stationId: string | null = null;
+    invertRailProfile: boolean = false;
     immutable: boolean = false;
     pointLocks: TrackPointLock[] = [];
 

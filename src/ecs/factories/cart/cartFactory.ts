@@ -5,15 +5,59 @@ import { CCart } from "../../components/CCart";
 import { CPosition, CRotation } from "../../components/CTransform";
 import { CVelocity } from "../../components/CVelocity";
 import { CObject3D } from "../../components/CObject3D";
+import { RAssetManager } from "../../resources/RAssetManager";
+import { GradientLitMaterial } from "../../../materials/GradientLitMaterial";
+import { GradientLitSpecularMaterial } from "../../../materials/GradientLitSpecularMaterial";
 
 
 export function FCart(world: World): number {
 
     const three = world.getResource(RThree)!;
+    const assets = world.getResource(RAssetManager)!;
+    const mesh = assets.getModel('cart-classic');
+    mesh.scale.set(0.14, 0.14, 0.14);
+    mesh.traverse((child) => {
+        if (child instanceof Mesh) {
+            if (child.name == "cart_classic_body") {
+                child.material = new GradientLitMaterial(
+                    {
+                        map: assets.getTexture('gradientMap'),
+                        lightColor: 0xFFA300,
+                        darkColor: 0x4D1900
+                        //lightColor: 0x5645FF,
+                        //darkColor: 0x19014D
+                    }
+                );
+                
+            }
+            else if (child.name == "cart_classic_seats") {
+                child.material = new GradientLitMaterial(
+                    {
+                        map: assets.getTexture('gradientMap'),
+                        lightColor: 0xF27930,
+                        darkColor: 0xBB280D,
+                        //lightColor: 0x595959,
+                        //darkColor: 0x000000,
+                    }
+                );
+            }
+             else if (child.name == "cart_classic_grays") {
+                child.material = new GradientLitMaterial(
+                    {
+                        map: assets.getTexture('gradientMap'),
+                        lightColor: 0xcccccc,
+                        darkColor: 0x000000,
+                    }
+                );
+            }
+        }
+    });
+
+
+
     const scene = three.scene;
 
     const cartParent = new Object3D()
-    const mesh = new Mesh(new BoxGeometry(0.2, 0.2, 0.1), new MeshNormalMaterial());
     mesh.position.y = 0.1;
     cartParent.add(mesh);
     scene.add(cartParent);

@@ -5,37 +5,37 @@
       "id": "classic",
       "name": "Classic",
       "visualSampleSpacing": 0.12,
-      "tubeSegmentLength": 0.05,
+      "tubeSegmentLength": 0.08,
       "rails": [
         {
           "lateralOffset": 0.06,
           "verticalOffset": 0.05,
           "radius": 0.01,
-          "radialSegments": 8,
-          "materialKey": "#29ADFF"
+          "radialSegments": 4,
+          "materialKey": "#FF004D"
         },
         {
           "lateralOffset": 0.06,
           "verticalOffset": -0.05,
           "radius": 0.01,
-          "radialSegments": 8,
-          "materialKey": "#29ADFF"
+          "radialSegments": 4,
+          "materialKey": "#FF004D"
         },
         {
           "lateralOffset": 0,
           "verticalOffset": 0,
           "radius": 0.02,
-          "radialSegments": 8,
-          "materialKey": "#FFEC27"
+          "radialSegments": 4,
+          "materialKey": "#FFA300"
         }
       ],
       "anchors": {
-        "spacing": 0.1
+        "spacing": 0.2
       },
       "centerPiece": {
         "modelKey": "separator-classic",
-        "color": "#FFEC27",
-        "scale": 0.1,
+        "color": "#FFA300",
+        "scale": 0.12,
         "orientationMode": "tangent"
       }
     },

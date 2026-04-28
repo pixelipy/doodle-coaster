@@ -4,22 +4,15 @@ export class GradientLitMaterial extends THREE.ShaderMaterial {
 
     constructor(params: {
         map: THREE.Texture,
-        lightDir?: THREE.Vector3,
-        lightColor?: THREE.ColorRepresentation
+        darkColor?: THREE.ColorRepresentation,
+        lightColor?: THREE.ColorRepresentation,
     }) {
-
-        const lightDir = (params.lightDir ?? new THREE.Vector3(0, 1, 0)).clone().normalize();
-
         const lightColor = new THREE.Color(params.lightColor ?? 0xffffff);
-        const darkColor = lightColor.clone().multiplyScalar(0.5);
-
-
+        const darkColor = new THREE.Color(params.darkColor ?? 0x000000);
 
         super({
-
             uniforms: {
                 map: { value: params.map },
-                lightDir: { value: lightDir },
                 darkColor: { value: darkColor },
                 lightColor: { value: lightColor }
             },
@@ -48,7 +41,6 @@ export class GradientLitMaterial extends THREE.ShaderMaterial {
 
             fragmentShader: `
                 uniform sampler2D map;
-                uniform vec3 lightDir;
                 uniform vec3 darkColor;
                 uniform vec3 lightColor;
 
@@ -63,21 +55,15 @@ export class GradientLitMaterial extends THREE.ShaderMaterial {
                     // two-color ramp
                     vec3 baseColor = mix(lightColor, darkColor, g);
 
-                    // lighting
-                    vec3 n = normalize(vNormal);
-                    float light = dot(n, lightDir) * 0.5 + 0.5;
+                    gl_FragColor = vec4(baseColor, 1.0);
 
-                    // final
-                    vec3 finalColor = baseColor;
-
-                    gl_FragColor = vec4(finalColor, 1.0);
+                    #include <tonemapping_fragment>
+	                #include <colorspace_fragment>
                 }
             `,
 
             transparent: false
         });
 
-        // enable instancing support
-        this.defines = { USE_INSTANCING: '' };
     }
 }

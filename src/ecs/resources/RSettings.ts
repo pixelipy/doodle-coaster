@@ -2,8 +2,10 @@ export class RSettings {
     camera: {
         PAN_SPEED: number,
         DEFAULT_Z_VALUE_DESKTOP: number,
+        DEFAULT_X_VALUE_DESKTOP: number,
         DRAWING_Z_VALUE_DESKTOP: number,
         DEFAULT_Z_VALUE_MOBILE: number,
+        DEFAULT_X_VALUE_MOBILE: number,
         DRAWING_Z_VALUE_MOBILE: number,
         ZOOM_SPEED: number,
         MOBILE_PAN_SPEED: number,
@@ -86,10 +88,12 @@ export class RSettings {
             ZOOM_SPEED: 0.01,
             MOBILE_PAN_SPEED: 0.02,
             MOBILE_ZOOM_SPEED: 0.03,
-            DEFAULT_Z_VALUE_DESKTOP: 2,
+            DEFAULT_Z_VALUE_DESKTOP: 3,
+            DEFAULT_X_VALUE_DESKTOP: 0,
             DRAWING_Z_VALUE_DESKTOP: 4,
 
-            DEFAULT_Z_VALUE_MOBILE: 2,
+            DEFAULT_Z_VALUE_MOBILE: 3,
+            DEFAULT_X_VALUE_MOBILE: 0,
             DRAWING_Z_VALUE_MOBILE: 5,
 
             MIN_ZOOM_DESKTOP: 1,

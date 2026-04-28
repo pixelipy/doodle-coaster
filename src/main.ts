@@ -43,6 +43,8 @@ import { loadLevelDefinition, spawnLevel } from './ecs/utils/levelLoader';
 import { loadRailProfileCollection } from './ecs/utils/railProfileLoader';
 import { SUI } from './ecs/systems/SUI';
 import { REvents } from './ecs/resources/REvents';
+import { RDebugger } from './ecs/resources/RDebugger';
+import { SDebugger } from './ecs/systems/SDebugger';
 
 const world = new World();
 const three = new RThree();
@@ -53,14 +55,17 @@ three.scene.add(grid);
 
 const assetManager = new RAssetManager();
 await assetManager.loadAll({
-    models: [{
-        key: 'player',
-        url: '/assets/models/animals/animal-cow.glb'
+    models: [
+    //carts
+    //carts
+    {
+        key: 'cart-classic',
+        url: '/assets/models/carts/classic.glb'
     },
     {
         key: 'separator-classic',
         url: '/assets/models/rail-separators/classic.glb'
-    }
+    },
     ], textures: [
         {
             key: 'gradientMap',
@@ -73,6 +78,7 @@ const trackProfiles = new RTrackProfiles();
 trackProfiles.loadCollection(await loadRailProfileCollection('/rail-profiles/profiles.json'));
 
 //Initilize Resources
+world.addResource(new RDebugger());
 world.addResource(new REvents());
 world.addResource(new RSettings());
 world.addResource(three);
@@ -108,6 +114,7 @@ world.addSystem(new SPassenger());
 world.addSystem(new SCameraController());
 world.addSystem(new STransformSync());
 world.addSystem(new SDrawTrack());
+world.addSystem(new SDebugger());
 world.addSystem(new SRender());
 world.addSystem(new SInputReset());
 

@@ -67,6 +67,9 @@ export class PipeMaterial extends ShaderMaterial {
                     vec3 finalColor = baseColor + specularColor * spec;
 
                     gl_FragColor = vec4(finalColor, 1.0);
+
+                    #include <tonemapping_fragment>
+	                #include <colorspace_fragment>
                 }
             `,
 
