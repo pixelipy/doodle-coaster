@@ -3,13 +3,13 @@ import { CPosition, CRotation } from "../components/CTransform";
 import type { World } from "../core/world";
 import { FObstacle } from "../factories/obstacleFactory";
 import { FStation } from "../factories/stationFactory";
-import { FCart4Passengers } from "../factories/cart/cart4passengers";
 import {
     type LevelDefinition,
     type LevelStationDefinition,
     type LevelVectorDefinition,
     RLevel,
 } from "../resources/RLevel";
+import { FCart } from "../factories/cart/cartFactory";
 
 export async function loadLevelDefinition(path: string): Promise<LevelDefinition> {
     const response = await fetch(path);
@@ -20,7 +20,7 @@ export async function loadLevelDefinition(path: string): Promise<LevelDefinition
     return await response.json() as LevelDefinition;
 }
 
-export function spawnLevel(world: World, definition: LevelDefinition): { cartId: number } {
+export async function spawnLevel(world: World, definition: LevelDefinition): Promise<{ cartId: number; }> {
     const level = world.getResource(RLevel)!;
     level.reset(definition);
 
@@ -35,7 +35,7 @@ export function spawnLevel(world: World, definition: LevelDefinition): { cartId:
     const spawnPosition = vectorFromDefinition(spawnStation.position);
     const spawnDirection = vectorFromDefinition(spawnStation.direction);
     const rotationZ = Math.atan2(spawnDirection.y, spawnDirection.x);
-    const cartId = FCart4Passengers(world, { position: spawnPosition, rotationZ });
+    const cartId = await FCart(world, { position: spawnPosition, rotationZ });
     const cartPosition = world.getComponent(cartId, CPosition);
     const cartRotation = world.getComponent(cartId, CRotation);
 

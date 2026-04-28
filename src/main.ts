@@ -35,7 +35,6 @@ import { SRaycastPlane } from './ecs/systems/SRaycastPlane';
 import { SDrawTrack } from './ecs/systems/SDrawTrack';
 import { SCart } from './ecs/systems/SCart';
 import { SUpdateSimulation } from './ecs/systems/SUpdateSimulation';
-import { SPassenger } from './ecs/systems/SPassenger';
 import { SCameraController } from './ecs/systems/SCameraController';
 
 //utils
@@ -57,7 +56,6 @@ const assetManager = new RAssetManager();
 await assetManager.loadAll({
     models: [
     //carts
-    //carts
     {
         key: 'cart-classic',
         url: '/assets/models/carts/classic.glb'
@@ -66,6 +64,14 @@ await assetManager.loadAll({
         key: 'separator-classic',
         url: '/assets/models/rail-separators/classic.glb'
     },
+    //passengers
+    {
+        key: 'passenger-classic',
+        url: '/assets/models/passengers/classic.glb'
+    },
+
+
+    //textures
     ], textures: [
         {
             key: 'gradientMap',
@@ -98,7 +104,7 @@ world.addResource(new RTrackVisualCache());
 
 //initialize entities
 const levelDefinition = await loadLevelDefinition('/levels/level-001.json');
-const { cartId } = spawnLevel(world, levelDefinition);
+const { cartId } = await spawnLevel(world, levelDefinition);
 
 //creates camera component
 FCamera(world, cartId);
@@ -110,7 +116,6 @@ world.addSystem(new SUpdateSimulation())
 world.addSystem(new SRaycastPlane());
 world.addSystem(new STime());
 world.addSystem(new SCart());
-world.addSystem(new SPassenger());
 world.addSystem(new SCameraController());
 world.addSystem(new STransformSync());
 world.addSystem(new SDrawTrack());

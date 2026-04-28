@@ -41,12 +41,13 @@ export class World {
     // COMPONENTS
     // --------------------------------------------------
 
-    addComponent<T>(entityId: number, component: T): void {
+    addComponent<T>(entityId: number, component: T): T {
         const type = (component as any).constructor as ComponentClass<T>;
         if (!this.components.has(type)) {
             this.components.set(type, new Map());
         }
         this.components.get(type)!.set(entityId, component);
+        return this.getComponent(entityId, type)!;
     }
 
     removeComponent<T>(entityId: number, componentType: ComponentClass<T>): void {

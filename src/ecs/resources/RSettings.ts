@@ -68,7 +68,7 @@ export class RSettings {
 
         this.cart = {
             MAX_SPEED: 7,
-            ATTACH_DIST: 0.2,
+            ATTACH_DIST: 0.0,
             REATTACH_COOLDOWN: 0.3,
             ANGULAR_VELOCITY_BUILD_RATE: 90,
             ANGULAR_VELOCITY_DECAY_RATE: 8,

@@ -1,0 +1,36 @@
+{
+    "activeCartId": "cart-classic",
+    "carts": [
+        {
+            "id": "cart-classic",
+            "description": "The classic cart. A good all-rounder.",
+            "scale": 0.14,
+            "parts": [
+                {
+                    "id": "cart_classic_body",
+                    "name": "Upper Body",
+                    "colors": ["#5645FF"],
+                    "currentActiveColor": 0
+                },
+                {
+                    "name": "Seats",
+                    "id": "cart_classic_seats",
+                    "colors": ["#595959", "#F27930"],
+                    "currentActiveColor": 0
+                },
+                {
+                    "name": "Lower Body",
+                    "id": "cart_classic_lower",
+                    "colors": ["#ACACAC"],
+                    "currentActiveColor": 0
+                },
+                {
+                    "name": "Wheels",
+                    "id": "cart_classic_wheels",
+                    "colors": ["#ACACAC"],
+                    "currentActiveColor": 0
+                }
+            ]
+        }
+    ]
+}

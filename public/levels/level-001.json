@@ -14,7 +14,7 @@
       "position": { "x": -5, "y": 0, "z": 0 },
       "direction": { "x": 1, "y": 0, "z": 0 },
       "stubLength": 0.8,
-      "boostSpeed": 2.5,
+      "boostSpeed": 1,
       "radius": 0.7
     },
     {
