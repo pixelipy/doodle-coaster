@@ -47,6 +47,7 @@ export class SCameraController extends System {
         let min_zoom = settings.camera.MIN_ZOOM_DESKTOP;
         let max_zoom = settings.camera.MAX_ZOOM_DESKTOP;
         let camera_default_x = settings.camera.DEFAULT_X_VALUE_DESKTOP;
+        let camera_default_y = settings.camera.DEFAULT_Y_VALUE_DESKTOP;
 
         if (window.width < 600) {
             camera_z_draw = settings.camera.DRAWING_Z_VALUE_MOBILE;
@@ -56,6 +57,7 @@ export class SCameraController extends System {
             min_zoom = settings.camera.MIN_ZOOM_MOBILE;
             max_zoom = settings.camera.MAX_ZOOM_MOBILE;
             camera_default_x = settings.camera.DEFAULT_X_VALUE_MOBILE;
+            camera_default_y = settings.camera.DEFAULT_Y_VALUE_MOBILE;
         }
 
 
@@ -118,6 +120,7 @@ export class SCameraController extends System {
 
             targetPos.z += camera_z_default; // offset back so we can see the cart
             targetPos.x += camera_default_x; // offset forward so cart is not in center of screen, but more towards bottom where the track is
+            targetPos.y += camera_default_y; // offset upward so cart is not in center of screen, but more towards bottom where the track is
             // smooth follow
             const currentPos = cameraPosition.position.clone();
             //const lerpFactor = 1 - Math.pow(0.3, dt); // smooth but frame-rate independent

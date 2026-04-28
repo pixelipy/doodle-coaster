@@ -12,21 +12,21 @@
           "verticalOffset": 0.05,
           "radius": 0.01,
           "radialSegments": 4,
-          "materialKey": "#FF004D"
+          "materialKey": "#C2C3C7"
         },
         {
           "lateralOffset": 0.06,
           "verticalOffset": -0.05,
           "radius": 0.01,
           "radialSegments": 4,
-          "materialKey": "#FF004D"
+          "materialKey": "#C2C3C7"
         },
         {
           "lateralOffset": 0,
           "verticalOffset": 0,
           "radius": 0.02,
           "radialSegments": 4,
-          "materialKey": "#FFA300"
+          "materialKey": "#2120CD"
         }
       ],
       "anchors": {
@@ -34,7 +34,7 @@
       },
       "centerPiece": {
         "modelKey": "separator-classic",
-        "color": "#FFA300",
+        "color": "#C2C3C7",
         "scale": 0.12,
         "orientationMode": "tangent"
       }

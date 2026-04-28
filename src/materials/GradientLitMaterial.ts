@@ -4,17 +4,14 @@ export class GradientLitMaterial extends THREE.ShaderMaterial {
 
     constructor(params: {
         map: THREE.Texture,
-        darkColor?: THREE.ColorRepresentation,
-        lightColor?: THREE.ColorRepresentation,
+        color?: THREE.ColorRepresentation,
     }) {
-        const lightColor = new THREE.Color(params.lightColor ?? 0xffffff);
-        const darkColor = new THREE.Color(params.darkColor ?? 0x000000);
+        const color = new THREE.Color(params.color ?? 0xffffff);
 
         super({
             uniforms: {
                 map: { value: params.map },
-                darkColor: { value: darkColor },
-                lightColor: { value: lightColor }
+                color: { value: color }
             },
 
             vertexShader: `
@@ -41,8 +38,7 @@ export class GradientLitMaterial extends THREE.ShaderMaterial {
 
             fragmentShader: `
                 uniform sampler2D map;
-                uniform vec3 darkColor;
-                uniform vec3 lightColor;
+                uniform vec3 color;
 
                 varying vec2 vUv;
                 varying vec3 vNormal;
@@ -53,7 +49,7 @@ export class GradientLitMaterial extends THREE.ShaderMaterial {
                     float g = texture2D(map, vUv).r;
 
                     // two-color ramp
-                    vec3 baseColor = mix(lightColor, darkColor, g);
+                    vec3 baseColor = mix(color, vec3(0.0), g);
 
                     gl_FragColor = vec4(baseColor, 1.0);
 

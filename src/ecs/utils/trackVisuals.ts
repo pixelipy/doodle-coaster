@@ -61,7 +61,7 @@ export function rebuildTrackGeometry(world: World, track: CTrack) {
     trackVisualCache.ensureActiveProfileAssets(
         profiles.version,
         activeProfile,
-        assetManager
+        assetManager!
     )
 
     const visualAnchors = sampleTrackVisualAnchors(

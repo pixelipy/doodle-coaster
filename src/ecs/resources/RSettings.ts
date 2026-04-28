@@ -3,9 +3,11 @@ export class RSettings {
         PAN_SPEED: number,
         DEFAULT_Z_VALUE_DESKTOP: number,
         DEFAULT_X_VALUE_DESKTOP: number,
+        DEFAULT_Y_VALUE_DESKTOP: number,
         DRAWING_Z_VALUE_DESKTOP: number,
         DEFAULT_Z_VALUE_MOBILE: number,
         DEFAULT_X_VALUE_MOBILE: number,
+        DEFAULT_Y_VALUE_MOBILE: number,
         DRAWING_Z_VALUE_MOBILE: number,
         ZOOM_SPEED: number,
         MOBILE_PAN_SPEED: number,
@@ -75,11 +77,11 @@ export class RSettings {
 
         this.passenger = {
             REATTACH_DIST: 0.25,
-            MIN_SEPARATION_BEFORE_REATTACHING: 0.4,
+            MIN_SEPARATION_BEFORE_REATTACHING: 0.35,
             DETACH_BOOST: 0.25,
             AIR_SPIN_SPEED_X: 0,
             AIR_SPIN_SPEED_Z: -7,
-            SUPPORT_THRESHOLD: -10,
+            SUPPORT_THRESHOLD: -12,
             AIRBORNE_SUPPORT_THRESHOLD: -3,
         }
 
@@ -90,10 +92,12 @@ export class RSettings {
             MOBILE_ZOOM_SPEED: 0.02,
             DEFAULT_Z_VALUE_DESKTOP: 3,
             DEFAULT_X_VALUE_DESKTOP: -1,
+            DEFAULT_Y_VALUE_DESKTOP: 1,
             DRAWING_Z_VALUE_DESKTOP: 4,
 
             DEFAULT_Z_VALUE_MOBILE: 3,
             DEFAULT_X_VALUE_MOBILE: -1,
+            DEFAULT_Y_VALUE_MOBILE: 1,
             DRAWING_Z_VALUE_MOBILE: 5,
 
             MIN_ZOOM_DESKTOP: 1,

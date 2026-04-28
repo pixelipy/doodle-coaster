@@ -10,7 +10,7 @@ export class PipeMaterial extends ShaderMaterial {
 
         const lightDir = (params.lightDir ?? new Vector3(0, 1, 0)).clone().normalize();
         const lightColor = new Color(params.lightColor ?? 0xffffff);
-        const darkColor = lightColor.clone().multiplyScalar(0.2);
+        const darkColor = lightColor.clone().multiplyScalar(0.1);
         const specularColor = clampColor(lightColor.clone().multiplyScalar(5.0));
         const shininess = params.shininess ?? 32;
 
@@ -59,12 +59,9 @@ export class PipeMaterial extends ShaderMaterial {
                     float light = dot(n, l) * 0.5 + 0.5;
                     vec3 baseColor = mix(darkColor, lightColor, light);
 
-                    // SPECULAR (cheap phong)
-                    vec3 r = reflect(-l, n);
-                    float spec = pow(max(dot(r, v), 0.0), shininess);
-
                     // FINAL
-                    vec3 finalColor = baseColor + specularColor * spec;
+                    //vec3 finalColor = baseColor + specularColor * spec;
+                    vec3 finalColor = baseColor;
 
                     gl_FragColor = vec4(finalColor, 1.0);
 

@@ -20,10 +20,9 @@ export function FCart(world: World): number {
                 child.material = new GradientLitMaterial(
                     {
                         map: assets.getTexture('gradientMap'),
-                        lightColor: 0xFFA300,
-                        darkColor: 0x4D1900
-                        //lightColor: 0x5645FF,
-                        //darkColor: 0x19014D
+                        color: 0x5645FF,
+                        //darkColor: 0x4D1900
+                        //color: 0x5645FF,
                     }
                 );
                 
@@ -32,10 +31,9 @@ export function FCart(world: World): number {
                 child.material = new GradientLitMaterial(
                     {
                         map: assets.getTexture('gradientMap'),
-                        lightColor: 0xF27930,
-                        darkColor: 0xBB280D,
-                        //lightColor: 0x595959,
-                        //darkColor: 0x000000,
+                        //lightColor: 0xF27930,
+                        //darkColor: 0xBB280D,
+                        color: 0x595959,
                     }
                 );
             }
@@ -43,8 +41,7 @@ export function FCart(world: World): number {
                 child.material = new GradientLitMaterial(
                     {
                         map: assets.getTexture('gradientMap'),
-                        lightColor: 0xcccccc,
-                        darkColor: 0x000000,
+                        color: 0xACACAC,
                     }
                 );
             }

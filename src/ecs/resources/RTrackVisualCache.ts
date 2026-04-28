@@ -25,7 +25,7 @@ export class RTrackVisualCache {
     ensureActiveProfileAssets(
         profileVersion: number,
         profile: RailProfileDefinition,
-        assetManager: RAssetManager | undefined
+        assetManager: RAssetManager
     ) {
         if (
             this.activeProfileId === profile.id &&
@@ -46,7 +46,7 @@ export class RTrackVisualCache {
         this.centerPieceAssets = buildCenterPieceAssets(profile, assetManager)
     }
 
-    getRailMaterial(materialKey: string) {
+    getRailMaterial(materialKey: string): Material {
         const material = this.railMaterials.get(materialKey)
         if (material) return material
 
@@ -92,7 +92,7 @@ function buildCenterPieceAssets(
         geometry,
         material: new GradientLitMaterial({
             map: assetManager.getTexture("gradientMap"),
-            lightColor: profile.centerPiece.color ?? "#ffffff"
+            color: profile.centerPiece.color ?? "#ffffff"
         }),
         castShadow: sourceMesh.castShadow,
         receiveShadow: sourceMesh.receiveShadow,
