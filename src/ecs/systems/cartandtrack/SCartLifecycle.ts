@@ -2,7 +2,7 @@ import { CCart } from "../../components/cartandtrack/CCart"
 import { CCartMotion } from "../../components/cartandtrack/CCartMotion"
 import { CCartOrientation } from "../../components/cartandtrack/CCartOrientation"
 import { CCartSpawnState } from "../../components/cartandtrack/CCartSpawnState"
-import { CJump } from "../../components/CJump"
+import { CJump } from "../../components/abilities/CJump"
 import { CTrackAttachment } from "../../components/cartandtrack/CTrackAttachment"
 import { CPosition, CRotation } from "../../components/CTransform"
 import { CVelocity } from "../../components/CVelocity"
@@ -11,7 +11,7 @@ import { World } from "../../core/world"
 import { RLevel } from "../../resources/RLevel"
 import { ESimulationState, RSimulationState } from "../../resources/RSimulationState"
 import { RTime } from "../../resources/RTime"
-import { SJump } from "../SJump"
+import { SJump } from "../abilities/SJump"
 
 export class SCartLifecycle extends System {
     private beginInterpolatedStep(pos: CPosition, rotation?: CRotation) {

@@ -1,6 +1,6 @@
 import { Vector3 } from "three"
-import { RSettings } from "../resources/RSettings"
-import { Component } from "../core/component"
+import { RSettings } from "../../resources/RSettings"
+import { Component } from "../../core/component"
 
 export class CJump extends Component {
     jumpPower: number = 0

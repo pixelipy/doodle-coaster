@@ -1,17 +1,17 @@
 import { Vector3 } from "three";
-import { CCart, type CartAbilityId } from "../components/cartandtrack/CCart";
-import { CCartSpawnState } from "../components/cartandtrack/CCartSpawnState";
-import { CPosition, CRotation } from "../components/CTransform";
-import type { World } from "../core/world";
-import { FObstacle } from "../factories/obstacleFactory";
-import { FStation } from "../factories/stationFactory";
+import { CCart, type CartAbilityId } from "../../components/cartandtrack/CCart";
+import { CCartSpawnState } from "../../components/cartandtrack/CCartSpawnState";
+import { CPosition, CRotation } from "../../components/CTransform";
+import type { World } from "../../core/world";
+import { FObstacle } from "../../factories/obstacleFactory";
+import { FStation } from "../../factories/stationFactory";
 import {
     type LevelDefinition,
     type LevelStationDefinition,
     type LevelVectorDefinition,
     RLevel,
-} from "../resources/RLevel";
-import { FCart } from "../factories/cart/cartFactory";
+} from "../../resources/RLevel";
+import { FCart } from "../../factories/cart/cartFactory";
 
 export async function loadLevelDefinition(path: string): Promise<LevelDefinition> {
     const response = await fetch(path);

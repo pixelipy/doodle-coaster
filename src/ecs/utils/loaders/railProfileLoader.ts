@@ -1,4 +1,4 @@
-import type { RailProfileCollectionDefinition } from "../resources/RTrackProfiles";
+import type { RailProfileCollectionDefinition } from "../../resources/RTrackProfiles";
 
 export async function loadRailProfileCollection(path: string): Promise<RailProfileCollectionDefinition> {
     const response = await fetch(path)

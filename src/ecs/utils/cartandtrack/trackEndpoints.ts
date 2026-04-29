@@ -1,6 +1,6 @@
 import { Vector3 } from "three";
-import { CTrack } from "../components/cartandtrack/CTrack";
-import type { World } from "../core/world";
+import { CTrack } from "../../components/cartandtrack/CTrack";
+import type { World } from "../../core/world";
 
 export type TrackEndpoint = "start" | "end"
 

@@ -10,7 +10,7 @@ import { CPosition, CRotation } from "../../components/CTransform";
 import { CVelocity } from "../../components/CVelocity";
 import { CObject3D } from "../../components/CObject3D";
 import { RAssetManager } from "../../resources/RAssetManager";
-import { loadCart } from "../../utils/cartLoader";
+import { loadCart } from "../../utils/loaders/cartLoader";
 import { FPassenger } from "../passengerFactory";
 import { GradientUnlitMaterial } from "../../../materials/GradientUnlitMaterial";
 

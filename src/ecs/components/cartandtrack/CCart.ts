@@ -1,5 +1,5 @@
 import type { World } from "../../core/world"
-import { CJump, createJumpComponent } from "../CJump"
+import { CJump, createJumpComponent } from "../abilities/CJump"
 import { RSettings } from "../../resources/RSettings"
 
 export type CartAbilityId = "jump"

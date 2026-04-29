@@ -13,7 +13,7 @@ import type { World } from "../core/world";
 import { FTrack } from "./trackFactory";
 import { RThree } from "../resources/RThree";
 import type { LevelStationDefinition } from "../resources/RLevel";
-import { rebuildTrackGeometry } from "../utils/trackVisuals";
+import { rebuildTrackGeometry } from "../utils/cartandtrack/trackVisuals";
 
 export function FStation(
     world: World,

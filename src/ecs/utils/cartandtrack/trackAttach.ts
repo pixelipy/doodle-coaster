@@ -1,5 +1,5 @@
 import { Vector3 } from "three"
-import { CTrack } from "../components/cartandtrack/CTrack"
+import { CTrack } from "../../components/cartandtrack/CTrack"
 
 export const TRACK_ATTACH_EPSILON = 1e-6
 

@@ -27,22 +27,22 @@ import { FCamera } from './ecs/factories/cameraFactory';
 
 //systems
 import { STransformSync } from './ecs/systems/STransformSync';
-import { SInputReset } from './ecs/systems/SInputReset';
-import { SInputInit } from './ecs/systems/SInputInit';
+import { SInputReset } from './ecs/systems/input/SInputReset';
+import { SInputInit } from './ecs/systems/input/SInputInit';
 import { STime } from './ecs/systems/STime';
 import { SRender } from './ecs/systems/SRender';
 import { SRaycastPlane } from './ecs/systems/SRaycastPlane';
-import { SDrawTrack } from './ecs/systems/SDrawTrack';
+import { SDrawTrack } from './ecs/systems/cartandtrack/SDrawTrack';
 import { SCartLifecycle } from './ecs/systems/cartandtrack/SCartLifecycle';
-import { SJump } from './ecs/systems/SJump';
+import { SJump } from './ecs/systems/abilities/SJump';
 import { STrackAttachDetach } from './ecs/systems/cartandtrack/STrackAttachDetach';
 import { STrackFollow } from './ecs/systems/cartandtrack/STrackFollow';
 import { SUpdateSimulation } from './ecs/systems/SUpdateSimulation';
 import { SCameraController } from './ecs/systems/SCameraController';
 
 //utils
-import { loadLevelDefinition, spawnLevel } from './ecs/utils/levelLoader';
-import { loadRailProfileCollection } from './ecs/utils/railProfileLoader';
+import { loadLevelDefinition, spawnLevel } from './ecs/utils/loaders/levelLoader';
+import { loadRailProfileCollection } from './ecs/utils/loaders/railProfileLoader';
 import { SUI } from './ecs/systems/SUI';
 import { REvents } from './ecs/resources/REvents';
 import { RDebugger } from './ecs/resources/RDebugger';

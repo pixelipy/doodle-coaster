@@ -1,6 +1,6 @@
 import { Vector3 } from "three"
-import { CTrack } from "../components/cartandtrack/CTrack"
-import { CRotation } from "../components/CTransform"
+import { CTrack } from "../../components/cartandtrack/CTrack"
+import { CRotation } from "../../components/CTransform"
 import { sampleTrackRailAtDistance } from "./trackRail"
 
 export const CART_ROTATION_EPSILON = 0.0001

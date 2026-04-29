@@ -2,7 +2,7 @@ import { Vector3 } from "three"
 import { CCart } from "../../components/cartandtrack/CCart"
 import { CCartMotion } from "../../components/cartandtrack/CCartMotion"
 import { CCartOrientation } from "../../components/cartandtrack/CCartOrientation"
-import { CJump } from "../../components/CJump"
+import { CJump } from "../../components/abilities/CJump"
 import { CTrackAttachment } from "../../components/cartandtrack/CTrackAttachment"
 import { CTrack } from "../../components/cartandtrack/CTrack"
 import { CPosition, CRotation } from "../../components/CTransform"
@@ -13,7 +13,7 @@ import { RLevel } from "../../resources/RLevel"
 import { ESimulationState, RSimulationState } from "../../resources/RSimulationState"
 import { RSettings } from "../../resources/RSettings"
 import { RTime } from "../../resources/RTime"
-import { applyTrackSample, type CartOrientationSettings } from "../../utils/cartRailKinematics"
+import { applyTrackSample, type CartOrientationSettings } from "../../utils/cartandtrack/cartRailKinematics"
 import {
     advanceAccumulatedAngularVelocity,
     clampAngularVelocity,
@@ -23,16 +23,16 @@ import {
     resolveVisualAngle,
     setRotationAngle,
     tangentAngle,
-} from "../../utils/cartOrientation"
-import { findConnectedTrackEndpoint } from "../../utils/trackEndpoints"
-import { sampleTrackRailAtDistance, sampleTrackRailAtSegmentDistance } from "../../utils/trackRail"
+} from "../../utils/cartandtrack/cartOrientation"
+import { findConnectedTrackEndpoint } from "../../utils/cartandtrack/trackEndpoints"
+import { sampleTrackRailAtDistance, sampleTrackRailAtSegmentDistance } from "../../utils/cartandtrack/trackRail"
 import {
     closestPointsBetweenSegments,
     isBetterTrackAttachCandidate,
     type TrackAttachCandidate,
     TRACK_ATTACH_EPSILON,
-} from "../../utils/trackAttach"
-import { SJump } from "../SJump"
+} from "../../utils/cartandtrack/trackAttach"
+import { SJump } from "../abilities/SJump"
 
 let GRAVITY = 3
 let ATTACH_DIST = 0.2

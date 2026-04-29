@@ -9,13 +9,13 @@ import {
     TubeGeometry,
     Vector3,
 } from "three";
-import { CTrack } from "../components/cartandtrack/CTrack";
-import type { World } from "../core/world";
-import { RAssetManager } from "../resources/RAssetManager";
-import { RSettings } from "../resources/RSettings";
-import { RTrackVisualCache } from "../resources/RTrackVisualCache";
-import type { RailCenterPieceDefinition } from "../resources/RTrackProfiles";
-import { RTrackProfiles } from "../resources/RTrackProfiles";
+import { CTrack } from "../../components/cartandtrack/CTrack";
+import type { World } from "../../core/world";
+import { RAssetManager } from "../../resources/RAssetManager";
+import { RSettings } from "../../resources/RSettings";
+import { RTrackVisualCache } from "../../resources/RTrackVisualCache";
+import type { RailCenterPieceDefinition } from "../../resources/RTrackProfiles";
+import { RTrackProfiles } from "../../resources/RTrackProfiles";
 import {
     type TrackVisualAnchor,
     buildOffsetRailPoints,

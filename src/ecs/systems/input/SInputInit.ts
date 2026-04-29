@@ -1,8 +1,8 @@
 //generates input map, and resets it every frame
-import { System } from "../core/system";
-import { World } from "../core/world";
-import { RInput } from "../resources/RInput";
-import { ESimulationState, RSimulationState } from "../resources/RSimulationState";
+import { System } from "../../core/system";
+import { World } from "../../core/world";
+import { RInput } from "../../resources/RInput";
+import { ESimulationState, RSimulationState } from "../../resources/RSimulationState";
 
 export class SInputInit extends System {
 

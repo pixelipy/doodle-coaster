@@ -3,7 +3,7 @@ import { CTrack } from "../components/cartandtrack/CTrack";
 import { World } from "../core/world";
 import { RThree } from "../resources/RThree";
 import { Factory } from "../core/factory";
-import { destroyTrackRender } from "../utils/trackVisuals";
+import { destroyTrackRender } from "../utils/cartandtrack/trackVisuals";
 
 export class FTrack extends Factory {
 

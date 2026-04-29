@@ -1,7 +1,7 @@
 //generates input map, and resets it every frame
-import { System } from "../core/system";
-import { World } from "../core/world";
-import { RInput } from "../resources/RInput";
+import { System } from "../../core/system";
+import { World } from "../../core/world";
+import { RInput } from "../../resources/RInput";
 
 export class SInputReset extends System {
 

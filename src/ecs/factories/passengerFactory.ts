@@ -6,7 +6,7 @@ import { CObject3D } from "../components/CObject3D";
 import { RAssetManager } from "../resources/RAssetManager";
 import { CAnimation } from "../components/CAnimation";
 import { GradientLitMaterial } from "../../materials/GradientLitMaterial";
-import { LoadPassenger } from "../utils/passengerLoader";
+import { LoadPassenger } from "../utils/loaders/passengerLoader";
 
 export async function FPassenger(world: World, parent: Object3D, position: Vector3, pose: string): Promise<number> {
 
