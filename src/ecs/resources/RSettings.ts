@@ -76,7 +76,7 @@ export class RSettings {
 
         this.cart = {
             MAX_SPEED: 4,
-            ATTACH_DIST: 0.0,
+            ATTACH_DIST: 0.05,
             REATTACH_COOLDOWN: 0.3,
             JUMP_BOOST: 2.5,
             JUMP_BUFFER_TIME: 0.12,
@@ -85,7 +85,7 @@ export class RSettings {
             APEX_GRAVITY_MODIFIER: 0.6,
             APEX_VERTICAL_SPEED_WINDOW: 0.75,
             JUMP_LAUNCH_MODE: "blended",
-            JUMP_BLEND_FACTOR: 0.5,
+            JUMP_BLEND_FACTOR: 0.25,
             ANGULAR_VELOCITY_BUILD_RATE: 90,
             ANGULAR_VELOCITY_DECAY_RATE: 8,
             MAX_ANGULAR_VELOCITY: 18,

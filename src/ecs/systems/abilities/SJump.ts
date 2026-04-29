@@ -64,7 +64,8 @@ export class SJump extends System {
         if (jump.jumpBufferTimer <= 0) return false
 
         const carryVelocity = tangent.clone().multiplyScalar(motion.speed)
-        const jumpImpulseVelocity = this.resolveJumpImpulseDirection(tangent).multiplyScalar(jump.jumpPower)
+        const jumpImpulseVelocity = this.resolveJumpImpulseDirection(tangent, orientation.prevTrackAngle)
+            .multiplyScalar(jump.jumpPower)
         const releaseVelocity = carryVelocity.add(jumpImpulseVelocity)
 
         vel.velocity.copy(releaseVelocity)
@@ -85,7 +86,10 @@ export class SJump extends System {
     ) {
         if (jump.jumpBufferTimer <= 0 || jump.coyoteTimer <= 0) return false
 
-        const jumpImpulseVelocity = this.resolveJumpImpulseDirection(jump.lastGroundTangent)
+        const jumpImpulseVelocity = this.resolveJumpImpulseDirection(
+            jump.lastGroundTangent,
+            orientation.prevTrackAngle
+        )
             .multiplyScalar(jump.jumpPower)
 
         vel.velocity.add(jumpImpulseVelocity)
@@ -95,7 +99,7 @@ export class SJump extends System {
         return true
     }
 
-    private static resolveJumpNormal(tangent: Vector3) {
+    private static resolveJumpNormalFromTangent(tangent: Vector3) {
         const normal = new Vector3(-tangent.y, tangent.x, 0)
         if (normal.lengthSq() <= ROTATION_EPSILON) {
             return new Vector3(0, 1, 0)
@@ -109,12 +113,24 @@ export class SJump extends System {
         return normal
     }
 
-    private static resolveJumpImpulseDirection(tangent: Vector3) {
+    private static resolveJumpNormalFromOrientation(trackAngle: number | null) {
+        if (trackAngle == null) return null
+
+        const leftNormal = new Vector3(-Math.sin(trackAngle), Math.cos(trackAngle), 0)
+        if (leftNormal.lengthSq() <= ROTATION_EPSILON) {
+            return null
+        }
+
+        return leftNormal.normalize()
+    }
+
+    private static resolveJumpImpulseDirection(tangent: Vector3, trackAngle: number | null = null) {
         if (JUMP_LAUNCH_MODE === "up") {
             return new Vector3(0, 1, 0)
         }
 
-        const jumpNormal = this.resolveJumpNormal(tangent)
+        const jumpNormal = this.resolveJumpNormalFromOrientation(trackAngle)
+            ?? this.resolveJumpNormalFromTangent(tangent)
         const blendedDirection = new Vector3(0, 1, 0).lerp(jumpNormal, JUMP_BLEND_FACTOR)
         if (blendedDirection.lengthSq() <= ROTATION_EPSILON) {
             return new Vector3(0, 1, 0)
