@@ -33,8 +33,10 @@ import { STime } from './ecs/systems/STime';
 import { SRender } from './ecs/systems/SRender';
 import { SRaycastPlane } from './ecs/systems/SRaycastPlane';
 import { SDrawTrack } from './ecs/systems/SDrawTrack';
-import { SCart } from './ecs/systems/SCart';
+import { SCartLifecycle } from './ecs/systems/cartandtrack/SCartLifecycle';
 import { SJump } from './ecs/systems/SJump';
+import { STrackAttachDetach } from './ecs/systems/cartandtrack/STrackAttachDetach';
+import { STrackFollow } from './ecs/systems/cartandtrack/STrackFollow';
 import { SUpdateSimulation } from './ecs/systems/SUpdateSimulation';
 import { SCameraController } from './ecs/systems/SCameraController';
 
@@ -116,8 +118,10 @@ world.addSystem(new SUI());
 world.addSystem(new SUpdateSimulation())
 world.addSystem(new SRaycastPlane());
 world.addSystem(new STime());
+world.addSystem(new SCartLifecycle());
 world.addSystem(new SJump());
-world.addSystem(new SCart());
+world.addSystem(new STrackAttachDetach());
+world.addSystem(new STrackFollow());
 world.addSystem(new SCameraController());
 world.addSystem(new STransformSync());
 world.addSystem(new SDrawTrack());

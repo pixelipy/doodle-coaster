@@ -1,5 +1,6 @@
 import { Vector3 } from "three";
-import { CCart, type CartAbilityId } from "../components/CCart";
+import { CCart, type CartAbilityId } from "../components/cartandtrack/CCart";
+import { CCartSpawnState } from "../components/cartandtrack/CCartSpawnState";
 import { CPosition, CRotation } from "../components/CTransform";
 import type { World } from "../core/world";
 import { FObstacle } from "../factories/obstacleFactory";
@@ -39,6 +40,7 @@ export async function spawnLevel(world: World, definition: LevelDefinition): Pro
     const cartId = await FCart(world, { position: spawnPosition, rotationZ });
     const cartPosition = world.getComponent(cartId, CPosition);
     const cartRotation = world.getComponent(cartId, CRotation);
+    const cartSpawnState = world.getComponent(cartId, CCartSpawnState);
 
     if (cartPosition) {
         cartPosition.position.copy(spawnPosition);
@@ -48,6 +50,11 @@ export async function spawnLevel(world: World, definition: LevelDefinition): Pro
     if (cartRotation) {
         cartRotation.rotation.set(0, 0, rotationZ);
         cartRotation.previousRotation.copy(cartRotation.rotation);
+    }
+
+    if (cartSpawnState) {
+        cartSpawnState.spawnPosition.copy(spawnPosition)
+        cartSpawnState.spawnRotation.set(0, 0, rotationZ)
     }
 
     level.cartId = cartId;

@@ -9,7 +9,7 @@ import {
     TubeGeometry,
     Vector3,
 } from "three";
-import { CTrack } from "../components/CTrack";
+import { CTrack } from "../components/cartandtrack/CTrack";
 import type { World } from "../core/world";
 import { RAssetManager } from "../resources/RAssetManager";
 import { RSettings } from "../resources/RSettings";

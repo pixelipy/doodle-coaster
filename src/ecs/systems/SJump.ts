@@ -1,6 +1,9 @@
 import { Vector3 } from "three"
-import { CCart } from "../components/CCart"
+import { CCart } from "../components/cartandtrack/CCart"
+import { CCartMotion } from "../components/cartandtrack/CCartMotion"
+import { CCartOrientation } from "../components/cartandtrack/CCartOrientation"
 import { CJump } from "../components/CJump"
+import { CTrackAttachment } from "../components/cartandtrack/CTrackAttachment"
 import { CVelocity } from "../components/CVelocity"
 import { System } from "../core/system"
 import type { World } from "../core/world"
@@ -50,32 +53,43 @@ export class SJump extends System {
         jump.coyoteTimer = 0
     }
 
-    static tryConsumeQueuedTrackJump(cart: CCart, jump: CJump, vel: CVelocity, tangent: Vector3) {
+    static tryConsumeQueuedTrackJump(
+        attachment: CTrackAttachment,
+        motion: CCartMotion,
+        orientation: CCartOrientation,
+        jump: CJump,
+        vel: CVelocity,
+        tangent: Vector3
+    ) {
         if (jump.jumpBufferTimer <= 0) return false
 
-        const carryVelocity = tangent.clone().multiplyScalar(cart.speed)
+        const carryVelocity = tangent.clone().multiplyScalar(motion.speed)
         const jumpImpulseVelocity = this.resolveJumpImpulseDirection(tangent).multiplyScalar(jump.jumpPower)
         const releaseVelocity = carryVelocity.add(jumpImpulseVelocity)
 
         vel.velocity.copy(releaseVelocity)
-        cart.attached = false
-        cart.lastTrackId = cart.trackId
-        cart.trackId = null
-        cart.reattachCooldown = REATTACH_COOLDOWN
-        cart.angularVelocity = 0
+        attachment.attached = false
+        attachment.lastTrackId = attachment.trackId
+        attachment.trackId = null
+        attachment.reattachCooldown = REATTACH_COOLDOWN
+        orientation.angularVelocity = 0
         jump.jumpBufferTimer = 0
         jump.coyoteTimer = 0
         return true
     }
 
-    static tryConsumeQueuedCoyoteJump(cart: CCart, jump: CJump, vel: CVelocity) {
+    static tryConsumeQueuedCoyoteJump(
+        orientation: CCartOrientation,
+        jump: CJump,
+        vel: CVelocity
+    ) {
         if (jump.jumpBufferTimer <= 0 || jump.coyoteTimer <= 0) return false
 
         const jumpImpulseVelocity = this.resolveJumpImpulseDirection(jump.lastGroundTangent)
             .multiplyScalar(jump.jumpPower)
 
         vel.velocity.add(jumpImpulseVelocity)
-        cart.angularVelocity = 0
+        orientation.angularVelocity = 0
         jump.jumpBufferTimer = 0
         jump.coyoteTimer = 0
         return true
@@ -126,8 +140,8 @@ export class SJump extends System {
         return input.keysPressedBuffered.has(jump.keyboardInput) || input.actionsPressedBuffered.has(jump.touchActionInput)
     }
 
-    private applyMidairGravity(cart: CCart, jump: CJump, vel: CVelocity, input: RInput, dt: number) {
-        if (cart.attached) return
+    private applyMidairGravity(attachment: CTrackAttachment, jump: CJump, vel: CVelocity, input: RInput, dt: number) {
+        if (attachment.attached) return
 
         let gravityModifier = 1
 
@@ -174,20 +188,27 @@ export class SJump extends System {
         for (let step = 0; step < time.pendingFixedSteps; step++) {
             const dt = time.fixedTimestep
 
-            for (const [_entityId, cart, jump, vel] of world.query3(CCart, CJump, CVelocity)) {
+            for (const [_entityId, cart, motion, attachment, orientation, jump, vel] of world.query(
+                CCart,
+                CCartMotion,
+                CTrackAttachment,
+                CCartOrientation,
+                CJump,
+                CVelocity
+            )) {
                 if (cart.goalReached || level?.completed) {
                     continue
                 }
 
                 this.tickJumpTimers(jump, dt)
 
-                if (cart.attached) {
-                    SJump.tryConsumeQueuedTrackJump(cart, jump, vel, jump.lastGroundTangent)
+                if (attachment.attached) {
+                    SJump.tryConsumeQueuedTrackJump(attachment, motion, orientation, jump, vel, jump.lastGroundTangent)
                     continue
                 }
 
-                SJump.tryConsumeQueuedCoyoteJump(cart, jump, vel)
-                this.applyMidairGravity(cart, jump, vel, input, dt)
+                SJump.tryConsumeQueuedCoyoteJump(orientation, jump, vel)
+                this.applyMidairGravity(attachment, jump, vel, input, dt)
             }
         }
     }

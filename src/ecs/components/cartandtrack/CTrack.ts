@@ -1,6 +1,6 @@
 import type { Group, InstancedMesh, Mesh, Vector3 } from "three";
-import { Component } from "../core/component";
-import type { TrackVisualAnchor } from "../utils/trackRail";
+import { Component } from "../../core/component";
+import type { TrackVisualAnchor } from "../../utils/trackRail";
 
 export type TrackRole = "player" | "stationStub"
 export type TrackPointLock = "free" | "protected"

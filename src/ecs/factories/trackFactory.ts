@@ -1,5 +1,5 @@
 import { Group } from "three";
-import { CTrack } from "../components/CTrack";
+import { CTrack } from "../components/cartandtrack/CTrack";
 import { World } from "../core/world";
 import { RThree } from "../resources/RThree";
 import { Factory } from "../core/factory";

@@ -1,7 +1,7 @@
 // adds to the transform, and marks as dirty so the STransformSync will move the mesh
 
 import { System } from "../core/system";
-import { CCart } from "../components/CCart";
+import { CCart } from "../components/cartandtrack/CCart";
 import { World } from "../core/world";
 import { CPosition } from "../components/CTransform";
 import { CVelocity } from "../components/CVelocity";

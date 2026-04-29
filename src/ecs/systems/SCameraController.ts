@@ -1,4 +1,4 @@
-import { CCart } from "../components/CCart";
+import { CCart } from "../components/cartandtrack/CCart";
 import { CPosition } from "../components/CTransform";
 import { System } from "../core/system";
 import type { World } from "../core/world";

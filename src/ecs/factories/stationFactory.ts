@@ -7,7 +7,7 @@ import {
 } from "three";
 import { CObject3D } from "../components/CObject3D";
 import { CStation } from "../components/CStation";
-import { CTrack } from "../components/CTrack";
+import { CTrack } from "../components/cartandtrack/CTrack";
 import { CPosition, CRotation } from "../components/CTransform";
 import type { World } from "../core/world";
 import { FTrack } from "./trackFactory";

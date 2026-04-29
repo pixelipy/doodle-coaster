@@ -1,7 +1,11 @@
 import { Mesh, Object3D, Vector3 } from "three";
 import type { World } from "../../core/world";
 import { RThree } from "../../resources/RThree";
-import { CCart } from "../../components/CCart";
+import { CCart } from "../../components/cartandtrack/CCart";
+import { CCartMotion } from "../../components/cartandtrack/CCartMotion";
+import { CCartOrientation } from "../../components/cartandtrack/CCartOrientation";
+import { CCartSpawnState } from "../../components/cartandtrack/CCartSpawnState";
+import { CTrackAttachment } from "../../components/cartandtrack/CTrackAttachment";
 import { CPosition, CRotation } from "../../components/CTransform";
 import { CVelocity } from "../../components/CVelocity";
 import { CObject3D } from "../../components/CObject3D";
@@ -55,7 +59,11 @@ export async function FCart(world: World, spawnConfig: { position?: Vector3, rot
     });
 
     const cartId = world.createEntity();
-    const cart = world.addComponent(cartId, new CCart());
+    world.addComponent(cartId, new CCart());
+    const cartMotion = world.addComponent(cartId, new CCartMotion());
+    world.addComponent(cartId, new CTrackAttachment());
+    world.addComponent(cartId, new CCartOrientation());
+    const cartSpawnState = world.addComponent(cartId, new CCartSpawnState());
     const cartPos = world.addComponent(cartId, new CPosition());
     world.addComponent(cartId, new CVelocity());
     const cartRotation = world.addComponent(cartId, new CRotation());
@@ -64,11 +72,12 @@ export async function FCart(world: World, spawnConfig: { position?: Vector3, rot
     //spawn at location
     cartPos.position.copy(spawnConfig.position ?? new Vector3(0, 0, 0));
     cartPos.previousPosition.copy(cartPos.position);
-    cart.spawnPosition.copy(cartPos.position);
+    cartSpawnState.spawnPosition.copy(cartPos.position);
 
     cartRotation.rotation.set(0, 0, spawnConfig.rotationZ ?? 0);
     cartRotation.previousRotation.copy(cartRotation.rotation);
-    cart.spawnRotation.copy(cartRotation.rotation);
+    cartSpawnState.spawnRotation.copy(cartRotation.rotation);
+    cartMotion.defaultSpeed = cartMotion.speed;
 
     // spawn passengers
 
