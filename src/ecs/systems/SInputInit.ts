@@ -14,6 +14,7 @@ export class SInputInit extends System {
         const input = world.getResource(RInput)!;
         const simulationState = world.getResource(RSimulationState)!;
         const SWIPE_THRESHOLD_PX = 48;
+        const SCREEN_TAP_ACTION = "screenTap";
 
         const normalizeKey = (key: string, code?: string) => {
             if (key === " " || key === "Space" || key === "Spacebar" || code === "Space") {
@@ -34,11 +35,30 @@ export class SInputInit extends System {
             clearSwipeTracking();
         };
 
+        const pressAction = (actionId: string) => {
+            if (!input.actionsDown.has(actionId)) {
+                input.actionsPressed.add(actionId);
+                input.actionsPressedBuffered.add(actionId);
+            }
+
+            input.actionsDown.add(actionId);
+        };
+
+        const releaseAction = (actionId: string) => {
+            if (!input.actionsDown.has(actionId)) return;
+
+            input.actionsDown.delete(actionId);
+            input.actionsReleased.add(actionId);
+            input.actionsReleasedBuffered.add(actionId);
+        };
+
         const releasePrimaryTouch = () => {
             if (input.lmbDown) {
                 input.lmbDown = false;
                 input.lmbReleased = true;
             }
+
+            releaseAction(SCREEN_TAP_ACTION);
 
             clearDrawTouch();
         };
@@ -56,6 +76,10 @@ export class SInputInit extends System {
             }
 
             input.lmbDown = true;
+
+            if (simulationState.state === ESimulationState.Playing) {
+                pressAction(SCREEN_TAP_ACTION);
+            }
         };
 
         const resetGestureTracking = () => {
@@ -86,8 +110,6 @@ export class SInputInit extends System {
 
             if (direction === "up") {
                 input.swipeUp = true;
-                input.keysPressed.add(" ");
-                input.keysPressedBuffered.add(" ");
                 return;
             }
 

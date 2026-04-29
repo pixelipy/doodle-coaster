@@ -9,6 +9,12 @@ export class RInput {
     keysPressedBuffered: Set<string> = new Set()
     keysReleasedBuffered: Set<string> = new Set()
 
+    actionsDown: Set<string> = new Set()
+    actionsPressed: Set<string> = new Set()
+    actionsReleased: Set<string> = new Set()
+    actionsPressedBuffered: Set<string> = new Set()
+    actionsReleasedBuffered: Set<string> = new Set()
+
     lmbDown: boolean = false
     lmbPressed: boolean = false
     lmbReleased: boolean = false

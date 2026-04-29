@@ -1,4 +1,5 @@
 import { Vector3 } from "three";
+import { CCart, type CartAbilityId } from "../components/CCart";
 import { CPosition, CRotation } from "../components/CTransform";
 import type { World } from "../core/world";
 import { FObstacle } from "../factories/obstacleFactory";
@@ -50,6 +51,13 @@ export async function spawnLevel(world: World, definition: LevelDefinition): Pro
     }
 
     level.cartId = cartId;
+    const cart = world.getComponent(cartId, CCart)
+    if (cart) {
+        for (const abilityId of level.enabledAbilities) {
+            cart.addAbility(world, cartId, abilityId as CartAbilityId)
+        }
+    }
+
     return { cartId };
 }
 

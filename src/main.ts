@@ -34,6 +34,7 @@ import { SRender } from './ecs/systems/SRender';
 import { SRaycastPlane } from './ecs/systems/SRaycastPlane';
 import { SDrawTrack } from './ecs/systems/SDrawTrack';
 import { SCart } from './ecs/systems/SCart';
+import { SJump } from './ecs/systems/SJump';
 import { SUpdateSimulation } from './ecs/systems/SUpdateSimulation';
 import { SCameraController } from './ecs/systems/SCameraController';
 
@@ -115,6 +116,7 @@ world.addSystem(new SUI());
 world.addSystem(new SUpdateSimulation())
 world.addSystem(new SRaycastPlane());
 world.addSystem(new STime());
+world.addSystem(new SJump());
 world.addSystem(new SCart());
 world.addSystem(new SCameraController());
 world.addSystem(new STransformSync());
