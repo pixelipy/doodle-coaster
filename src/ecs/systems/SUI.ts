@@ -12,6 +12,27 @@ import { EVENTS } from "../core/event";
 import { SUpdateSimulation } from "./SUpdateSimulation";
 
 export class SUI extends System {
+    private blurActiveUiElement() {
+        const activeElement = document.activeElement;
+        if (activeElement instanceof HTMLElement) {
+            activeElement.blur();
+        }
+    }
+
+    private makeButtonMouseSafe(button: HTMLButtonElement | null) {
+        if (!button) return;
+
+        button.tabIndex = -1;
+
+        button.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+        });
+
+        button.addEventListener('click', () => {
+            this.blurActiveUiElement();
+        });
+    }
+
     init(world: World): void {
         const ui = world.getResource(RUI)!;
 
@@ -21,6 +42,10 @@ export class SUI extends System {
 
         ui.offscreenStartIcon.icon = document.getElementById('offscreen-start-icon') as HTMLImageElement;
         ui.offscreenEndIcon.icon = document.getElementById('offscreen-end-icon') as HTMLImageElement;
+
+        this.makeButtonMouseSafe(ui.playPauseButton);
+        this.makeButtonMouseSafe(ui.drawButton);
+        this.makeButtonMouseSafe(ui.eraseButton);
 
         if (ui.playPauseButton && ui.eraseButton && ui.drawButton) {
             ui.playPauseButton.addEventListener('click', () => {
@@ -151,7 +176,7 @@ export class SUI extends System {
                 if (!ui.offscreenStartIcon.icon || !ui.offscreenEndIcon.icon) break;
 
                 if (event.data === ESimulationState.Playing) {
-                    console.log("hide?")
+                    this.blurActiveUiElement();
                     ui.offscreenStartIcon.icon.classList.add('hide');
                     ui.offscreenEndIcon.icon.classList.add('hide');
                 } else {

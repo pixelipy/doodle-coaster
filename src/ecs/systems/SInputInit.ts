@@ -2,6 +2,7 @@
 import { System } from "../core/system";
 import { World } from "../core/world";
 import { RInput } from "../resources/RInput";
+import { ESimulationState, RSimulationState } from "../resources/RSimulationState";
 
 export class SInputInit extends System {
 
@@ -11,10 +12,26 @@ export class SInputInit extends System {
 
     init(world: World): void {
         const input = world.getResource(RInput)!;
+        const simulationState = world.getResource(RSimulationState)!;
+        const SWIPE_THRESHOLD_PX = 48;
+
+        const normalizeKey = (key: string, code?: string) => {
+            if (key === " " || key === "Space" || key === "Spacebar" || code === "Space") {
+                return " "
+            }
+
+            return key
+        }
+
+        const clearSwipeTracking = () => {
+            input.swipeStartTouchPosition = null;
+            input.swipeConsumedOnActiveTouch = false;
+        };
 
         const clearDrawTouch = () => {
             input.activeDrawTouchId = null;
             input.previousDrawTouchPosition = null;
+            clearSwipeTracking();
         };
 
         const releasePrimaryTouch = () => {
@@ -29,6 +46,8 @@ export class SInputInit extends System {
         const beginPrimaryTouch = (touch: Touch) => {
             input.activeDrawTouchId = touch.identifier;
             input.previousDrawTouchPosition = { x: touch.clientX, y: touch.clientY };
+            input.swipeStartTouchPosition = { x: touch.clientX, y: touch.clientY };
+            input.swipeConsumedOnActiveTouch = false;
             input.mousePosition.set(touch.clientX, touch.clientY);
             input.mouseDelta.set(0, 0);
 
@@ -62,16 +81,67 @@ export class SInputInit extends System {
             };
         };
 
-        window.addEventListener("keydown", (e) => {
-            if (!input.keysDown.has(e.key)) {
-                input.keysPressed.add(e.key);
+        const triggerSwipe = (direction: "up" | "down" | "left" | "right") => {
+            input.swipeConsumedOnActiveTouch = true;
+
+            if (direction === "up") {
+                input.swipeUp = true;
+                input.keysPressed.add(" ");
+                input.keysPressedBuffered.add(" ");
+                return;
             }
-            input.keysDown.add(e.key);
+
+            if (direction === "down") {
+                input.swipeDown = true;
+                return;
+            }
+
+            if (direction === "left") {
+                input.swipeLeft = true;
+                return;
+            }
+
+            input.swipeRight = true;
+        };
+
+        const maybeTriggerSwipe = (touch: Touch) => {
+            if (simulationState.state !== ESimulationState.Playing) return;
+            if (input.touchGestureActive || input.swipeConsumedOnActiveTouch) return;
+
+            const start = input.swipeStartTouchPosition;
+            if (!start) return;
+
+            const dx = touch.clientX - start.x;
+            const dy = touch.clientY - start.y;
+
+            if (Math.abs(dx) < SWIPE_THRESHOLD_PX && Math.abs(dy) < SWIPE_THRESHOLD_PX) {
+                return;
+            }
+
+            if (Math.abs(dy) >= Math.abs(dx)) {
+                triggerSwipe(dy < 0 ? "up" : "down");
+                return;
+            }
+
+            triggerSwipe(dx < 0 ? "left" : "right");
+        };
+
+        window.addEventListener("keydown", (e) => {
+            const normalizedKey = normalizeKey(e.key, e.code)
+
+            if (!input.keysDown.has(normalizedKey)) {
+                input.keysPressed.add(normalizedKey);
+                input.keysPressedBuffered.add(normalizedKey);
+            }
+            input.keysDown.add(normalizedKey);
         });
 
         window.addEventListener("keyup", (e) => {
-            input.keysDown.delete(e.key);
-            input.keysReleased.add(e.key);
+            const normalizedKey = normalizeKey(e.key, e.code)
+
+            input.keysDown.delete(normalizedKey);
+            input.keysReleased.add(normalizedKey);
+            input.keysReleasedBuffered.add(normalizedKey);
         });
 
         window.addEventListener("mousedown", (e) => {
@@ -154,6 +224,8 @@ export class SInputInit extends System {
             if (input.touches.size === 1 && !input.touchGestureActive && input.activeDrawTouchId !== null) {
                 const activeTouch = Array.from(e.touches).find(touch => touch.identifier === input.activeDrawTouchId);
                 if (activeTouch) {
+                    maybeTriggerSwipe(activeTouch);
+
                     const previousPosition = input.previousDrawTouchPosition ?? {
                         x: activeTouch.clientX,
                         y: activeTouch.clientY,

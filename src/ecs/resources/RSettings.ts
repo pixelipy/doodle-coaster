@@ -36,6 +36,11 @@ export class RSettings {
         MAX_SPEED: number,
         ATTACH_DIST: number,
         REATTACH_COOLDOWN: number,
+        JUMP_BOOST: number,
+        JUMP_BUFFER_TIME: number,
+        COYOTE_TIME: number,
+        JUMP_LAUNCH_MODE: "up" | "blended",
+        JUMP_BLEND_FACTOR: number,
         ANGULAR_VELOCITY_BUILD_RATE: number,
         ANGULAR_VELOCITY_DECAY_RATE: number,
         MAX_ANGULAR_VELOCITY: number,
@@ -54,7 +59,7 @@ export class RSettings {
 
     constructor() {
         this.physics = {
-            GRAVITY: 3,
+            GRAVITY: 5,
         }
 
         this.track = {
@@ -67,9 +72,14 @@ export class RSettings {
         }
 
         this.cart = {
-            MAX_SPEED: 7,
+            MAX_SPEED: 4,
             ATTACH_DIST: 0.0,
             REATTACH_COOLDOWN: 0.3,
+            JUMP_BOOST: 2.5,
+            JUMP_BUFFER_TIME: 0.12,
+            COYOTE_TIME: 0.1,
+            JUMP_LAUNCH_MODE: "blended",
+            JUMP_BLEND_FACTOR: 0.5,
             ANGULAR_VELOCITY_BUILD_RATE: 90,
             ANGULAR_VELOCITY_DECAY_RATE: 8,
             MAX_ANGULAR_VELOCITY: 18,
@@ -95,7 +105,7 @@ export class RSettings {
             DEFAULT_Y_VALUE_DESKTOP: 1,
             DRAWING_Z_VALUE_DESKTOP: 4,
 
-            DEFAULT_Z_VALUE_MOBILE: 3,
+            DEFAULT_Z_VALUE_MOBILE: 4,
             DEFAULT_X_VALUE_MOBILE: -1,
             DEFAULT_Y_VALUE_MOBILE: 1,
             DRAWING_Z_VALUE_MOBILE: 5,

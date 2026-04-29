@@ -16,6 +16,9 @@ export class CCart {
     prevTrackAngle: number | null = null; // keeps track of angle on previous frame.
     lastBoostStationId: string | null = null;
     goalReached: boolean = false;
+    jumpBufferTimer: number = 0;
+    coyoteTimer: number = 0;
+    lastGroundTangent: Vector3 = new Vector3(1, 0, 0);
 
     spawnPosition: Vector3 = new Vector3();
     spawnRotation: Vector3 = new Vector3();

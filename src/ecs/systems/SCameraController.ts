@@ -105,6 +105,7 @@ export class SCameraController extends System {
                 currentPos.lerp(targetPos, lerpFactor);
             }
 
+            cameraComp.cameraObject.position.copy(currentPos);
             cameraComp.cameraObject.quaternion.slerp(DRAW_MODE_QUATERNION, lerpFactor);
             cameraPosition.previousPosition.copy(currentPos);
             cameraPosition.position.copy(currentPos);
@@ -125,6 +126,7 @@ export class SCameraController extends System {
             const currentPos = cameraPosition.position.clone();
             //const lerpFactor = 1 - Math.pow(0.3, dt); // smooth but frame-rate independent
             currentPos.lerp(targetPos, 1);
+            cameraComp.cameraObject.position.copy(currentPos);
             cameraComp.cameraObject.lookAt(interpolatedCartPos); // keep orientation on the same interpolated timestep as the camera follow
             cameraPosition.previousPosition.copy(currentPos);
             cameraPosition.position.copy(currentPos);

@@ -18,6 +18,11 @@ let GRAVITY = 3
 let ATTACH_DIST = 0.2
 let REATTACH_COOLDOWN = 0.3
 let MAX_SPEED = 7
+let JUMP_BOOST = 1.5
+let JUMP_BUFFER_TIME = 0.12
+let COYOTE_TIME = 0.1
+let JUMP_BLEND_FACTOR = 0.25
+let JUMP_LAUNCH_MODE: "up" | "blended" = "up"
 let ANGULAR_VELOCITY_BUILD_RATE = 90
 let ANGULAR_VELOCITY_DECAY_RATE = 8
 let MAX_ANGULAR_VELOCITY = 18
@@ -41,6 +46,14 @@ type TrackAttachCandidate = {
 }
 
 export class SCart extends System {
+    private consumeBufferedKey(buffer: Set<string>, key: string) {
+        const hasKey = buffer.has(key)
+        if (hasKey) {
+            buffer.delete(key)
+        }
+
+        return hasKey
+    }
 
     init(world: World): void {
         let settings = world.getResource(RSettings)!
@@ -49,6 +62,11 @@ export class SCart extends System {
         ATTACH_DIST = settings.cart.ATTACH_DIST
         REATTACH_COOLDOWN = settings.cart.REATTACH_COOLDOWN
         MAX_SPEED = settings.cart.MAX_SPEED
+        JUMP_BOOST = settings.cart.JUMP_BOOST
+        JUMP_BUFFER_TIME = settings.cart.JUMP_BUFFER_TIME
+        COYOTE_TIME = settings.cart.COYOTE_TIME
+        JUMP_BLEND_FACTOR = settings.cart.JUMP_BLEND_FACTOR
+        JUMP_LAUNCH_MODE = settings.cart.JUMP_LAUNCH_MODE
         ANGULAR_VELOCITY_BUILD_RATE = settings.cart.ANGULAR_VELOCITY_BUILD_RATE
         ANGULAR_VELOCITY_DECAY_RATE = settings.cart.ANGULAR_VELOCITY_DECAY_RATE
         MAX_ANGULAR_VELOCITY = settings.cart.MAX_ANGULAR_VELOCITY
@@ -218,6 +236,81 @@ export class SCart extends System {
         return deltaAngle / (ds / Math.abs(speed))
     }
 
+    private resolveJumpNormal(tangent: Vector3) {
+        const normal = new Vector3(-tangent.y, tangent.x, 0)
+        if (normal.lengthSq() <= ROTATION_EPSILON) {
+            return new Vector3(0, 1, 0)
+        }
+
+        normal.normalize()
+        if (normal.y < 0) {
+            normal.multiplyScalar(-1)
+        }
+
+        return normal
+    }
+
+    private resolveJumpImpulseDirection(tangent: Vector3) {
+        if (JUMP_LAUNCH_MODE === "up") {
+            return new Vector3(0, 1, 0)
+        }
+
+        const jumpNormal = this.resolveJumpNormal(tangent)
+        const blendedDirection = new Vector3(0, 1, 0).lerp(jumpNormal, JUMP_BLEND_FACTOR)
+        if (blendedDirection.lengthSq() <= ROTATION_EPSILON) {
+            return new Vector3(0, 1, 0)
+        }
+
+        return blendedDirection.normalize()
+    }
+
+    private jumpFromTrack(cart: CCart, vel: CVelocity, tangent: Vector3) {
+        const carryVelocity = tangent.clone().multiplyScalar(cart.speed)
+        const jumpImpulseVelocity = this.resolveJumpImpulseDirection(tangent).multiplyScalar(JUMP_BOOST)
+        const releaseVelocity = carryVelocity.add(jumpImpulseVelocity)
+
+        cart.angularVelocity = 0
+        cart.jumpBufferTimer = 0
+        this.detach(cart, vel, releaseVelocity)
+    }
+
+    private jumpFromCoyote(cart: CCart, vel: CVelocity, tangent: Vector3) {
+        const jumpImpulseVelocity = this.resolveJumpImpulseDirection(tangent).multiplyScalar(JUMP_BOOST)
+
+        vel.velocity.add(jumpImpulseVelocity)
+        cart.angularVelocity = 0
+        cart.jumpBufferTimer = 0
+        cart.coyoteTimer = 0
+    }
+
+    private queueBufferedJump(cart: CCart) {
+        cart.jumpBufferTimer = Math.max(cart.jumpBufferTimer, JUMP_BUFFER_TIME)
+    }
+
+    private tickJumpTimers(cart: CCart, dt: number) {
+        cart.jumpBufferTimer = Math.max(0, cart.jumpBufferTimer - dt)
+        cart.coyoteTimer = Math.max(0, cart.coyoteTimer - dt)
+    }
+
+    private refreshGroundedJumpState(cart: CCart, tangent: Vector3) {
+        cart.lastGroundTangent.copy(tangent)
+        cart.coyoteTimer = COYOTE_TIME
+    }
+
+    private tryConsumeQueuedJumpOnTrack(cart: CCart, vel: CVelocity, tangent: Vector3) {
+        if (cart.jumpBufferTimer <= 0) return false
+
+        this.jumpFromTrack(cart, vel, tangent)
+        return true
+    }
+
+    private tryConsumeQueuedCoyoteJump(cart: CCart, vel: CVelocity) {
+        if (cart.jumpBufferTimer <= 0 || cart.coyoteTimer <= 0) return false
+
+        this.jumpFromCoyote(cart, vel, cart.lastGroundTangent)
+        return true
+    }
+
     private beginInterpolatedStep(pos: CPosition, rotation?: CRotation) {
         pos.previousPosition.copy(pos.position)
 
@@ -251,6 +344,9 @@ export class SCart extends System {
         cart.reattachCooldown = 0
         cart.lastBoostStationId = null
         cart.goalReached = false
+        cart.jumpBufferTimer = 0
+        cart.coyoteTimer = 0
+        cart.lastGroundTangent.set(1, 0, 0)
     }
 
     private updateFreeCart(
@@ -261,6 +357,7 @@ export class SCart extends System {
         dt: number,
         rotation?: CRotation
     ) {
+        this.tryConsumeQueuedCoyoteJump(cart, vel)
         vel.velocity.y -= GRAVITY * dt
 
         const prevPos = pos.position.clone()
@@ -284,8 +381,6 @@ export class SCart extends System {
         dt: number,
         rotation?: CRotation
     ) {
-        const input = world.getResource(RInput)!
-
         const track = world.getComponent(cart.trackId!, CTrack)
         if (!track || track.physicsPoints.length < 2) return
 
@@ -301,24 +396,15 @@ export class SCart extends System {
         if (!currentSample) return
 
         const tangent = currentSample.tangent
+        this.refreshGroundedJumpState(cart, tangent)
 
         if (track.trackRole !== "stationStub") {
             cart.lastBoostStationId = null
         }
 
-        //car jump!
-        const level = world.getResource(RLevel)
-        if (level && level.enabledAbilities.includes("jump")) {
-            // Implement jump logic here
-            if (input.keysDown.has(" ")){
-                //detach immediatelly and jump with current speed + boost
-            }
-
-            if (input.keysReleased.has(" ")){
-                // Implement logic for when the jump key is released
-            }
+        if (this.tryConsumeQueuedJumpOnTrack(cart, vel, tangent)) {
+            return
         }
-
 
         cart.speed += -GRAVITY * tangent.y * dt
         cart.speed = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, cart.speed))
@@ -583,7 +669,7 @@ export class SCart extends System {
             }
         }
 
-        this.detach(cart, vel, releaseVelocity)
+        this.detach(cart, vel, releaseVelocity, releaseTangent)
     }
 
     update(world: World, _dt: number): void {
@@ -591,6 +677,8 @@ export class SCart extends System {
         const sim = world.getResource(RSimulationState)!
         const time = world.getResource(RTime)!
         const level = world.getResource(RLevel)
+        const input = world.getResource(RInput)!
+        const jumpEnabled = level?.enabledAbilities.includes("jump") ?? false
 
         if (sim.state === ESimulationState.DrawingTrack) {
             if (level) {
@@ -606,6 +694,12 @@ export class SCart extends System {
 
         if (time.pendingFixedSteps <= 0) return
 
+        if (jumpEnabled && this.consumeBufferedKey(input.keysPressedBuffered, " ")) {
+            for (const [_entityId, cart] of world.query1(CCart)) {
+                this.queueBufferedJump(cart)
+            }
+        }
+
         for (let step = 0; step < time.pendingFixedSteps; step++) {
             const dt = time.fixedTimestep
 
@@ -613,6 +707,7 @@ export class SCart extends System {
                 const rotation = world.getComponent(e, CRotation)
                 this.beginInterpolatedStep(pos, rotation)
                 cart.reattachCooldown = Math.max(0, cart.reattachCooldown - dt)
+                this.tickJumpTimers(cart, dt)
 
                 if (cart.goalReached || level?.completed) {
                     vel.velocity.set(0, 0, 0)
@@ -628,14 +723,23 @@ export class SCart extends System {
                 this.updateAttachedCart(world, cart, pos, vel, dt, rotation)
             }
         }
+
+        input.keysPressedBuffered.clear()
+        input.keysReleasedBuffered.clear()
     }
 
-    private detach(cart: CCart, vel: CVelocity, releaseVelocity: Vector3) {
+    private detach(cart: CCart, vel: CVelocity, releaseVelocity: Vector3, coyoteTangent?: Vector3) {
         vel.velocity.copy(releaseVelocity)
         cart.attached = false
         cart.lastTrackId = cart.trackId
         cart.trackId = null
         cart.reattachCooldown = REATTACH_COOLDOWN
+        if (coyoteTangent) {
+            cart.lastGroundTangent.copy(coyoteTangent)
+            cart.coyoteTimer = COYOTE_TIME
+        } else {
+            cart.coyoteTimer = 0
+        }
     }
 
     private tryAttach(
@@ -733,9 +837,9 @@ export class SCart extends System {
         cart.trackId = bestCandidate.trackId
         cart.lastTrackId = bestCandidate.trackId
 
-        // Attaching snaps onto the rail sample chosen from the swept free-fall segment.
+        // Preserve the pre-attach transform as the interpolation start so the
+        // rendered cart and camera can ease into the snapped rail pose cleanly.
         pos.position.copy(bestCandidate.pointOnTrack)
-        pos.previousPosition.copy(bestCandidate.pointOnTrack)
         pos.dirty = true
 
         const attachSample = sampleTrackRailAtDistance(
@@ -773,11 +877,15 @@ export class SCart extends System {
             ))
             if (rotation) {
                 this.setRotationAngle(rotation, visualAngle)
-                rotation.previousRotation.copy(rotation.rotation)
             }
         }
 
         cart.attached = true
+        this.refreshGroundedJumpState(cart, attachSample.tangent)
+
+        if (this.tryConsumeQueuedJumpOnTrack(cart, vel, attachSample.tangent)) {
+            return
+        }
     }
 }
 

@@ -6,6 +6,8 @@ export class RInput {
     keysDown: Set<string> = new Set()
     keysPressed: Set<string> = new Set()
     keysReleased: Set<string> = new Set()
+    keysPressedBuffered: Set<string> = new Set()
+    keysReleasedBuffered: Set<string> = new Set()
 
     lmbDown: boolean = false
     lmbPressed: boolean = false
@@ -19,6 +21,11 @@ export class RInput {
     rmbPressed: boolean = false
     rmbReleased: boolean = false
 
+    swipeUp: boolean = false
+    swipeDown: boolean = false
+    swipeLeft: boolean = false
+    swipeRight: boolean = false
+
     mousePosition: Vector2 = new Vector2() //in screen space, z=0
     mouseDelta: Vector2 = new Vector2() //change in mouse position since last frame
 
@@ -29,6 +36,8 @@ export class RInput {
     touches = new Map<number, {x: number, y: number}>()
     activeDrawTouchId: number | null = null
     previousDrawTouchPosition: { x: number, y: number } | null = null
+    swipeStartTouchPosition: { x: number, y: number } | null = null
+    swipeConsumedOnActiveTouch: boolean = false
     touchGestureActive: boolean = false
 
     //internal

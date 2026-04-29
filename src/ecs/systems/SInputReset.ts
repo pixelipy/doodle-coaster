@@ -19,6 +19,10 @@ export class SInputReset extends System {
         input.mmbReleased = false;
         input.rmbPressed = false;
         input.rmbReleased = false;
+        input.swipeUp = false;
+        input.swipeDown = false;
+        input.swipeLeft = false;
+        input.swipeRight = false;
         input.zoomDelta = 0;
         input.panDelta.x = 0;
         input.panDelta.y = 0;
